@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration scan="true" scanPeriod="10000">
+
+    <appender name="SANDBOX-FILE-APPENDER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <!--        <file>/web/logs/agent.vltava.dmall.com/agent.log</file>-->
+        <file>/tmp/agent.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <FileNamePattern>/tmp/agent.log.%d{yyyy-MM-dd}</FileNamePattern>
+            <MaxHistory>7</MaxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{MM-dd HH:mm:ss.SSS} %-5level %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="IN_OUT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>/tmp/mock-data.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <FileNamePattern>/tmp/mock-data.log.%d{yyyy-MM-dd}</FileNamePattern>
+            <MaxHistory>7</MaxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{MM-dd HH:mm:ss.SSS} %-5level %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <root level="info">
+        <appender-ref ref="SANDBOX-FILE-APPENDER"/>
+    </root>
+
+    <logger name="IN_OUT" level="INFO" additivity="false">
+        <appender-ref ref="IN_OUT"/>
+    </logger>
+
+</configuration>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration scan="true" scanPeriod="10000">
+
+    <appender name="SANDBOX-FILE-APPENDER" class="ch.qos.logback.core.rolling.RollingFileAppender">
+<!--        <file>/web/logs/agent.vltava.dmall.com/agent.log</file>-->
+        <file>/tmp/agent.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <FileNamePattern>/web/logs/agent.vltava.dmall.com/agent.log.%d{yyyy-MM-dd}</FileNamePattern>
+            <MaxHistory>7</MaxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <root level="info">
+        <appender-ref ref="SANDBOX-FILE-APPENDER"/>
+    </root>
+
+</configuration>
