@@ -39,6 +39,7 @@ public class Register {
         }
         if (success) {
             logger.info("HTTP服务器启动成功!");
+            logger.info("registerVO is "+JSON.toJSONString(registerVO));
             MqService.send(registerVO);
             return httpService;
         } else {

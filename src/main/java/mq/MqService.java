@@ -49,6 +49,7 @@ public class MqService {
                 @Override
                 public void onSucc(SendResult sendResult) {
                     logger.info("注册MQ发送成功！");
+                    logger.info("messageId is "+sendResult.getMsgId());
                 }
             });
         } catch (DMGSendException e) {
