@@ -118,6 +118,7 @@ public class Core implements Module, ModuleLifecycle {
                                                                 logger.info("pass due to status...");
                                                                 return;
                                                             }
+                                                            logger.info("event is "+JSONObject.toJSONString(event));
                                                             EventBO eventBO = new EventBO();
                                                             eventBO.setReference(coreBO.getReference());
                                                             try {
