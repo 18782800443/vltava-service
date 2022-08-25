@@ -98,6 +98,7 @@ public class Core implements Module, ModuleLifecycle {
         if (CORE_MAP.containsKey(reference)) {
             return true;
         }
+        logger.info("##### reference is "+reference);
         CoreBO coreBO = init(reference);
         EventWatcher eventWatcher = null;
         EventWatchBuilder.IBuildingForWatching iBuildingForWatching = new EventWatchBuilder(moduleEventWatcher)
@@ -121,6 +122,7 @@ public class Core implements Module, ModuleLifecycle {
                                                                 switch (event.type) {
                                                                     case BEFORE:
                                                                         BeforeEvent beforeEvent = (BeforeEvent) event;
+                                                                        logger.info("##准备开始mock的前置处理！");
                                                                         mockBefore(beforeEvent, eventBO);
                                                                         break;
                                                                     case RETURN:
@@ -183,6 +185,7 @@ public class Core implements Module, ModuleLifecycle {
     }
 
     private static void mockBefore(BeforeEvent beforeEvent, EventBO eventBO) throws ProcessControlException {
+        logger.info("##本次处理的类是："+beforeEvent.javaClassName);
         String tid = getTid(beforeEvent);
         String params = JSON.toJSONString(beforeEvent.argumentArray);
         paramLogger.info(String.format("@ %s @ 【class】：%s【method】：%s【param】: %s", beforeEvent.invokeId, eventBO.getReference().split("#")[0],
@@ -289,6 +292,7 @@ public class Core implements Module, ModuleLifecycle {
      * 匹配规则
      */
     private static void matchAction(BeforeEvent beforeEvent, EventBO eventBO, String params, String tid) {
+        logger.info(" 正则匹配，匹配被调用类("+beforeEvent.javaClassName+")的mockKey");
         eventBO.setMatch(false);
         TraceContext traceContext = Tracer.getContext();
         if (traceContext == null) {
@@ -352,6 +356,7 @@ public class Core implements Module, ModuleLifecycle {
      */
     private static void implicitParams(BeforeEvent beforeEvent, EventBO eventBO) {
         try {
+            logger.info(beforeEvent.javaClassName+" ##处理RPC的隐式参数...");
             Class rpcContext = beforeEvent.javaClassLoader.loadClass(RPC_CONTEXT_CLASS);
             Method getContext = rpcContext.getMethod("getContext");
             logger.info(getContext.invoke(rpcContext).toString());
