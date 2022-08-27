@@ -8,10 +8,8 @@ import com.alibaba.jvm.sandbox.api.event.*;
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatchBuilder;
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatcher;
 import com.alibaba.jvm.sandbox.api.resource.ModuleEventWatcher;
-import com.dmall.monitor.sdk.Monitor;
 import com.dmall.vltava.domain.enums.MockTypeEnum;
 import com.dmall.vltava.domain.enums.TaskStatusEnum;
-import com.dmall.vltava.domain.mock.InvokeVO;
 import com.dmall.vltava.domain.mock.MockActionVO;
 import com.dmall.vltava.domain.mock.SleepTimeVO;
 import core.domain.CoreBO;
@@ -26,13 +24,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.dubbo.common.utils.PojoUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.kohsuke.MetaInfServices;
-import util.Json2Map;
 import util.LogbackUtils;
-
 import javax.annotation.Resource;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,6 +44,8 @@ public class Core implements Module, ModuleLifecycle {
     private static final Logger paramLogger = LoggerFactory.getLogger("IN_OUT");
     private static final String RPC_CONTEXT_CLASS = "org.apache.dubbo.rpc.RpcContext";
     private static final String HTTP_HEADER_CLASS = "org.springframework.web.context.request.RequestContextHolder";
+    private static final String HTTP_ATTRIBUTES_CLASS = "org.springframework.web.context.request.ServletRequestAttributes";
+    private static final String REQUEST_FACADE ="org.apache.catalina.connector.RequestFacade";
     private static final String VLTAVA_MOCK_KEY = "vltavaMockKey";
     private static final Pattern PATTERN = Pattern.compile("(?<=vltavaMockKey\":\").*?(?=\",)");
     private static Boolean initConcurrent = true;
@@ -361,15 +357,25 @@ public class Core implements Module, ModuleLifecycle {
      * 处理隐式参数
      */
     private static void implicitParams(BeforeEvent beforeEvent, EventBO eventBO) {
-        //如何判断是http请求还是dubbo调用
+        Class httpContext = null;
+        Class attributes = null;
+        Class rpcContext = null;
+        Class facade = null;
+        try {
+            httpContext = beforeEvent.javaClassLoader.loadClass(HTTP_HEADER_CLASS);
+            attributes = beforeEvent.javaClassLoader.loadClass(HTTP_ATTRIBUTES_CLASS);
+            rpcContext = beforeEvent.javaClassLoader.loadClass(RPC_CONTEXT_CLASS);
+            facade = beforeEvent.javaClassLoader.loadClass(REQUEST_FACADE);
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
         try {
             String contextStr = null;
             try {
                 //使用类的ClassLoader获取调用时的RPCContext里面的数据，可以对这里进行改造，增加如果是Http请求的情况
                 logger.info(beforeEvent.javaClassName + " ##处理RPC的隐式参数...");
-                Class rpcContext = beforeEvent.javaClassLoader.loadClass(RPC_CONTEXT_CLASS);
                 Method getContext = rpcContext.getMethod("getContext");
-                logger.info("隐式处理参数，获取rpcContext里面的内容" + getContext.invoke(rpcContext).toString());
+                logger.info("隐式处理参数，获取rpcContext里面的内容" + JSON.toJSONString(getContext.invoke(rpcContext)));
                 contextStr = JSON.toJSONString(getContext.invoke(rpcContext));
             } catch (Exception e) {
                 e.printStackTrace();
@@ -384,23 +390,27 @@ public class Core implements Module, ModuleLifecycle {
             } else {
                 try {
                     logger.info(beforeEvent.javaClassName + " ##处理http请求头部参数...");
-                    Class httpContext = beforeEvent.javaClassLoader.loadClass(HTTP_HEADER_CLASS);
-                    Method getContext = httpContext.getMethod("getRequestAttributes");
-                    logger.info("隐式处理参数，获取rpcContext里面的内容" + getContext.invoke(httpContext).toString());
-                    contextStr = JSON.toJSONString(getContext.invoke(httpContext));
+                    Method getRequestAttributes = httpContext.getMethod("getRequestAttributes");
+                    Object httpRequestFacade = getRequestAttributes.invoke(httpContext);//获取了一个RequestFacade类
+                    Method getRequest = attributes.getMethod("getRequest");
+                    Object request = getRequest.invoke(httpRequestFacade);//获取了一个RequestFacade类
+                    logger.info("request is "+request.toString());
+
+                    Method getFacadeRequest = facade.getMethod("getHeader",String.class);
+                    Object header = getFacadeRequest.invoke(request,"vltavaMockKey");
+                    logger.info("header is "+header.toString());
+                    contextStr = header.toString();
                 } catch (Exception e) {
                     e.printStackTrace();
+                    logger.info(e.getMessage());
                 }
-                if (contextStr.contains(VLTAVA_MOCK_KEY)) {
-                    Matcher matcher = PATTERN.matcher(contextStr);
-                    if (matcher.find()) {
-                        String mockKey = matcher.group(0);
-                        logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + mockKey);
-                        eventBO.setMockKey(mockKey);
-                    }
+                if (contextStr!=null) {
+                    logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + contextStr);
+                    eventBO.setMockKey(contextStr);
                 }
             }
         }catch (Exception e){
+            logger.info(e.getMessage());
             e.printStackTrace();
         }
     }
