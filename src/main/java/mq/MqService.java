@@ -23,12 +23,12 @@ import java.util.Set;
 public class MqService {
     private static final Logger logger = LoggerFactory.getLogger(MqService.class);
 
-    private final static String PROJECT_CODE = "SupplyChainTool";
-    private final static String APP_CODE = "rdp-sms-tools";
-    private final static String SECRET_KEY = "e32d1592-eab6-47e5-9f2f-74c62aded8fd";
-    private final static String DMG_SERVER_ADDR = "testamp.dmg.api.inner-rta-os.com";
-    private final static String DMC_SERVER_ADDR  = "testds.dmc.api.inner-rta-os.com";
-    private final static String TOPIC = "rkt_vltava_req_test";
+    private final static String PROJECT_CODE = "aladdin-FIT";
+    private final static String APP_CODE = "dmall-fit-vltava";
+    private final static String SECRET_KEY = "5795DBAF-1888-47AA-89B2-CCD224BE65E9";
+    private final static String DMG_SERVER_ADDR = "testamp.dmg.api.fit.inner-dmall.com";
+    private final static String DMC_SERVER_ADDR  = "testds.dmc.api.fit.inner-dmall.com";
+    private final static String TOPIC = "rkt_vltava_req_test_test";
 
     private static DefRocketProducerWrapper wrapper;
 
