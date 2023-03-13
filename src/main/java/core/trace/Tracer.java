@@ -8,6 +8,8 @@ import core.domain.TraceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
+
 /**
  * @author Rob
  */
@@ -41,6 +43,10 @@ public class Tracer {
 
     public static TraceContext getContext(){
         return getContextCarrie().get();
+    }
+
+    public static void  setContext(HashMap mockMap){
+
     }
 
     public static String getTid(){

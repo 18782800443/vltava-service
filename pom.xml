@@ -122,6 +122,12 @@
             <artifactId>cobertura-maven-plugin</artifactId>
             <version>2.2</version>
         </dependency>
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>7.1.0</version>
+            <scope>compile</scope>
+        </dependency>
 
     </dependencies>
 

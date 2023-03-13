@@ -28,11 +28,10 @@ import org.kohsuke.MetaInfServices;
 import util.LogbackUtils;
 import javax.annotation.Resource;
 import java.lang.reflect.Method;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.testng.annotations.Test;
 
 /**
  * @author Rob
@@ -95,6 +94,7 @@ public class Core implements Module, ModuleLifecycle {
     }
 
     public static Boolean start(String reference) {
+        logger.info("##### start ");
         if (CORE_MAP.containsKey(reference)) {
             return true;
         }
@@ -123,6 +123,7 @@ public class Core implements Module, ModuleLifecycle {
                                                                     case BEFORE:
                                                                         BeforeEvent beforeEvent = (BeforeEvent) event;
                                                                         logger.info("mock请求参数(BEFORE)！eventBO is " + JSONObject.toJSONString(eventBO));
+                                                                        logger.info("eventBO的mockey为:" + eventBO.getMockKey());
                                                                         mockBefore(beforeEvent, eventBO);
                                                                         break;
                                                                     case RETURN:
@@ -185,7 +186,7 @@ public class Core implements Module, ModuleLifecycle {
         return coreBO;
     }
 
-    private static void mockBefore(BeforeEvent beforeEvent, EventBO eventBO) throws ProcessControlException {
+    private static void mockBefore(BeforeEvent beforeEvent, EventBO eventBO) throws ProcessControlException, InterruptedException {
         logger.info("##本次处理的类是：" + beforeEvent.javaClassName);
         String tid = getTid(beforeEvent);
         String params = JSON.toJSONString(beforeEvent.argumentArray);
@@ -199,12 +200,23 @@ public class Core implements Module, ModuleLifecycle {
         } else {
             // 入口方法
             if (eventBO.getMatchedMockAction().getEntrance() != null && eventBO.getMatchedMockAction().getEntrance()) {
+                logger.info("111111111111111");
                 return;
             }
             // 非入口
+            logger.info("1111111111111112");
+            SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
+            Integer time;
+            if (sleepTimeVO.getNeedRandom() == 1) {
+                time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
+            } else {
+                time = sleepTimeVO.getBaseTime();
+            }
+            Thread.sleep(time);
             Tracer.getContext().startInvoke(beforeEvent);
         }
         if (eventBO.getMatchedMockAction().getMockType().equals(MockTypeEnum.RETURN_VALUE.getKey())) {
+            logger.info("1111111111111113");
             Class clz = null;
             try {
                 clz = beforeEvent.javaClassLoader.loadClass(beforeEvent.javaClassName);
@@ -212,14 +224,21 @@ public class Core implements Module, ModuleLifecycle {
                 logger.error(e.getMessage(), e);
             }
             for (Method method : clz.getMethods()) {
+                logger.info("1111111111111114");
+                logger.info(JSON.toJSONString(method.getName()));
+                logger.info(JSON.toJSONString(beforeEvent.javaMethodName));
                 if (method.getName().equals(beforeEvent.javaMethodName)) {
+                    logger.info("1111111111111115");
                     Object returnObj = null;
                     updateDynamic(eventBO, beforeEvent);
                     logger.info(String.format("@" + beforeEvent.invokeId + "@ " + "will return expect value: %s", eventBO.getMatchedMockAction().getExpectValue()));
-                    if (JSON.parseObject(eventBO.getMatchedMockAction().getExpectValue()).containsKey("class")) {
-                        returnObj = PojoUtils.realize(JSON.parseObject(eventBO.getMatchedMockAction().getExpectValue()), method.getReturnType(), method.getGenericReturnType());
+                    // mock数据中的${xxx}格式，从请求的参数中找到xxx的值来替换原mock数据
+                    String mockData = formatStr(eventBO.getMatchedMockAction().getExpectValue(), beforeEvent.argumentArray);
+                    logger.info("替换变量后的返回结果为："+ mockData);
+                    if (JSON.parseObject(mockData).containsKey("class")) {
+                        returnObj = PojoUtils.realize(JSON.parseObject(mockData), method.getReturnType(), method.getGenericReturnType());
                     } else {
-                        returnObj = JSON.parseObject(eventBO.getMatchedMockAction().getExpectValue(), method.getGenericReturnType());
+                        returnObj = JSON.parseObject(mockData, method.getGenericReturnType());
                     }
                     logger.info("即将返回的调用结果:" + JSONObject.toJSONString(returnObj));
                     ProcessController.returnImmediately(returnObj);
@@ -230,6 +249,108 @@ public class Core implements Module, ModuleLifecycle {
             ProcessController.throwsImmediately(new Exception(eventBO.getMatchedMockAction().getErrorMsg()));
         }
     }
+
+    /*
+        查找requestStr中包含"${}"格式的关键字，去response中查找到后并替换原requestStr的数据并返回
+     */
+    public static String formatStr(String responseStr, Object[] request){
+        try{
+            Pattern pattern = Pattern.compile("\\$\\{([\\s\\S]+?)\\}");
+            Matcher matcher = pattern.matcher(responseStr);
+            StringBuffer stringBuffer = new StringBuffer();
+            while (matcher.find()){
+                String substring = responseStr.substring(matcher.start(), matcher.end());
+                String k = matcher.group(1);
+                String targetV = String.valueOf(findKV(k, request));
+                matcher.appendReplacement(stringBuffer, matcher.group().replace(substring, targetV));
+            }
+            matcher.appendTail(stringBuffer);
+            return String.valueOf(stringBuffer);
+        } catch (Exception e){
+            logger.error(e.getMessage(), e);
+            return responseStr;
+        }
+    }
+
+
+
+    /*
+      递归查找response对象中包含指定key的值
+     */
+    public static Object findKV(String key, Object[] response){
+        for (Object obj: response) {
+            try{
+                if (obj instanceof List){
+                    Object[] objArr = ((List) obj).toArray();
+                    return findKV(key, objArr);
+                }
+                if (obj instanceof Object[]){
+                    Object[] objArr = (Object[]) obj;
+                    return findKV(key, objArr);
+                }
+                String objStr;
+                if (obj instanceof String) {
+                    objStr = (String) obj;
+                }else {
+                    objStr = JSON.toJSONString(obj);
+                }
+                JSONObject jsonObj = JSON.parseObject(objStr);
+                for (Map.Entry<String, Object> entry : jsonObj.entrySet()) {
+                    if (key.equals(entry.getKey())) {
+                        return entry.getValue();
+                    } else {
+                        Object [] objArray;
+                        if (entry.getValue().getClass().isArray()){
+                            objArray = (Object [])  entry.getValue();
+                        } else {
+                            objArray = new Object[]{entry.getValue()};
+                        }
+                        Object result = findKV(key, objArray);
+                        if (result != null) {
+                            return result;
+                        }
+                    }
+                }
+            } catch (Exception e){
+                continue;
+            }
+        }
+        return null;
+    }
+
+
+
+//    @Test
+//    public static void replaceTest() {
+//        String requestStr = "{\"msg\":\"成功\",\"test_mock_key\":\"${tid}\",\"code\":\"${startTime}\",\"respMsg\":\"${mockKey}\",\"resp_data\":{\"need_query\":\"${entranceReference}\",\"merchant_no\":\"822651048160KWL\",\"account_type\":\"WECHAT\",\"acc_resp_fields\":{\"up_iss_addn_data\":\"\",\"promotion_detail\":\"\",\"user_id\":\"\",\"open_id\":\"oVxsc1c6X5f0D67nPiwFntNovi4s\",\"up_coupon_info\":\"\",\"alipay_store_id\":\"\",\"trade_info\":\"\"},\"payer_amount\":\"1\",\"acc_discount_amount\":\"\",\"trade_time\":\"20230214093910\",\"bank_type\":\"OTHERS\",\"acc_settle_amount\":\"1\",\"acc_trade_no\":\"4200059241202302143291091198\",\"remark\":\"\",\"log_no\":\"66213787774554\",\"card_type\":\"99\",\"acc_mdiscount_amount\":\"0\",\"out_trade_no\":\"29000216763387490214093901000102\",\"total_amount\":\"1\",\"trade_no\":\"20230214110113130166213787774554\"},\"respCode\":\"BBS00000\"}";
+//        TraceContext test = new TraceContext("123", "456", "789");
+////        System.out.println(JSON.toJSONString(test));
+//        TraceContext test1 = new TraceContext("321", "321", "555");
+////        String test = "{\"tid\": \"888\", \"mockKey\":\"777\", \"entranceReference\": \"666\"}";
+//
+//        List<TraceContext> payChannelParams = new ArrayList<>();
+//        payChannelParams.add(test);
+//        Object ss=(Object) payChannelParams;
+////        payChannelParams.add(test1);
+////        JSONObject =
+//        Object[] strobj = new Object[]{test};
+//
+//        ClassLoader ss1 = new ClassLoader() {
+//            @Override
+//            public Class<?> loadClass(String name) throws ClassNotFoundException {
+//                return super.loadClass(name);
+//            }
+//        };
+//        Object[] obj1 = new Object[]{""};
+////        BeforeEvent event = new BeforeEvent(123, 321, ss1, "yyy", "zzz", "desc", "target", strobj);
+//        Object[] objar = new Object[]{strobj,"https://s2.lakala.com/api/v3/labs/trans/micropay"};
+//        System.out.println(JSON.toJSONString(objar));
+//        Object result = findKV("tid", strobj);
+////        String result = formatStr(requestStr, event.argumentArray);
+////        String result = formatStr(requestStr, JSON.parseObject(test));
+//        System.out.print(result);
+//    }
+
 
     private static void updateDynamic(EventBO eventBO, BeforeEvent beforeEvent) {
         if (eventBO.getMatchedMockAction().getDynamicChange() != null && eventBO.getMatchedMockAction().getDynamicChange()) {
@@ -290,6 +411,20 @@ public class Core implements Module, ModuleLifecycle {
         }
     }
 
+
+    private static String getParam(BeforeEvent beforeEvent) {
+        try {
+//            beforeEvent.argumentArray
+            Class monitorClz = beforeEvent.javaClassLoader.loadClass("com.dmall.monitor.sdk.Monitor");
+            Method method = monitorClz.getMethod("getTraceId");
+            Object tid = method.invoke(monitorClz);
+            return tid != null ? (String) tid : null;
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            return null;
+        }
+    }
+
     /**
      * 匹配规则
      */
@@ -297,6 +432,7 @@ public class Core implements Module, ModuleLifecycle {
         logger.info(" 正则匹配，匹配被调用类(" + beforeEvent.javaClassName + ")的mockKey");
         eventBO.setMatch(false);
         TraceContext traceContext = Tracer.getContext();
+        logger.info("上下文为：" + JSON.toJSONString(traceContext));
         if (traceContext == null) {
             Tracer.start(null, eventBO.getReference(), tid);
             implicitParams(beforeEvent, eventBO);
@@ -378,14 +514,17 @@ public class Core implements Module, ModuleLifecycle {
                 logger.info("隐式处理参数，获取rpcContext里面的内容" + JSON.toJSONString(getContext.invoke(rpcContext)));
                 contextStr = JSON.toJSONString(getContext.invoke(rpcContext));
             } catch (Exception e) {
+                logger.info(e.getMessage());
                 e.printStackTrace();
             }
+            Method setAttachment = rpcContext.getMethod("setAttachment");
             if (contextStr.contains(VLTAVA_MOCK_KEY)) {
                 Matcher matcher = PATTERN.matcher(contextStr);
                 if (matcher.find()) {
                     String mockKey = matcher.group(0);
                     logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + mockKey);
                     eventBO.setMockKey(mockKey);
+                    setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, mockKey);
                 }
             } else {
                 try {
@@ -400,13 +539,14 @@ public class Core implements Module, ModuleLifecycle {
                     Object header = getFacadeRequest.invoke(request,"vltavaMockKey");
                     logger.info("header is "+header.toString());
                     contextStr = header.toString();
+                    if (contextStr!=null) {
+                        logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + contextStr);
+                        eventBO.setMockKey(contextStr);
+                        setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, contextStr);
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                     logger.info(e.getMessage());
-                }
-                if (contextStr!=null) {
-                    logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + contextStr);
-                    eventBO.setMockKey(contextStr);
                 }
             }
         }catch (Exception e){
