@@ -1,6 +1,7 @@
 package core;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.JSONPath;
 import com.alibaba.jvm.sandbox.api.*;
@@ -189,7 +190,8 @@ public class Core implements Module, ModuleLifecycle {
     private static void mockBefore(BeforeEvent beforeEvent, EventBO eventBO) throws ProcessControlException, InterruptedException {
         logger.info("##本次处理的类是：" + beforeEvent.javaClassName);
         String tid = getTid(beforeEvent);
-        String params = JSON.toJSONString(beforeEvent.argumentArray);
+        logger.info("##参数为：" + beforeEvent.argumentArray);
+        String params = JSONArray.toJSONString(beforeEvent.argumentArray);
         paramLogger.info(String.format("@ %s @ 【class】：%s【method】：%s【param】: %s", beforeEvent.invokeId, eventBO.getReference().split("#")[0],
                 eventBO.getReference().split("#")[1], params));
         matchAction(beforeEvent, eventBO, params, tid);
@@ -205,14 +207,18 @@ public class Core implements Module, ModuleLifecycle {
             }
             // 非入口
             logger.info("1111111111111112");
-            SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
-            Integer time;
-            if (sleepTimeVO.getNeedRandom() == 1) {
-                time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
-            } else {
-                time = sleepTimeVO.getBaseTime();
+            try{
+                SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
+                Integer time;
+                if (sleepTimeVO.getNeedRandom() == 1) {
+                    time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
+                } else {
+                    time = sleepTimeVO.getBaseTime();
+                }
+                Thread.sleep(time);
+            } catch (Exception e){
+                logger.info("##未获取到休眠时间");
             }
-            Thread.sleep(time);
             Tracer.getContext().startInvoke(beforeEvent);
         }
         if (eventBO.getMatchedMockAction().getMockType().equals(MockTypeEnum.RETURN_VALUE.getKey())) {
@@ -503,6 +509,7 @@ public class Core implements Module, ModuleLifecycle {
             rpcContext = beforeEvent.javaClassLoader.loadClass(RPC_CONTEXT_CLASS);
             facade = beforeEvent.javaClassLoader.loadClass(REQUEST_FACADE);
         } catch (ClassNotFoundException e) {
+            logger.info("报错信息为1：" + e.getMessage());
             e.printStackTrace();
         }
         try {
@@ -511,10 +518,11 @@ public class Core implements Module, ModuleLifecycle {
                 //使用类的ClassLoader获取调用时的RPCContext里面的数据，可以对这里进行改造，增加如果是Http请求的情况
                 logger.info(beforeEvent.javaClassName + " ##处理RPC的隐式参数...");
                 Method getContext = rpcContext.getMethod("getContext");
+                logger.info("rpc上下文为：" + String.valueOf(getContext.invoke(rpcContext)));
                 logger.info("隐式处理参数，获取rpcContext里面的内容" + JSON.toJSONString(getContext.invoke(rpcContext)));
                 contextStr = JSON.toJSONString(getContext.invoke(rpcContext));
             } catch (Exception e) {
-                logger.info(e.getMessage());
+                logger.info("报错信息为2：" + e.getMessage());
                 e.printStackTrace();
             }
             Method setAttachment = rpcContext.getMethod("setAttachment");
@@ -546,11 +554,11 @@ public class Core implements Module, ModuleLifecycle {
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                    logger.info(e.getMessage());
+                    logger.info("报错信息为3：" + e.getMessage());
                 }
             }
         }catch (Exception e){
-            logger.info(e.getMessage());
+            logger.info("报错信息为4：" + e.getMessage());
             e.printStackTrace();
         }
     }
