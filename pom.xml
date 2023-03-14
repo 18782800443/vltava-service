@@ -39,12 +39,32 @@
         </plugins>
     </build>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <!-- Import dependency management from Spring Boot -->
+                <groupId>com.dmall.fit</groupId>
+                <artifactId>fit-boot-dependencies</artifactId>
+                <version>1.0.8-RELEASE</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
+
 
         <dependency>
             <groupId>org.apache.dubbo</groupId>
             <artifactId>dubbo-common</artifactId>
             <version>2.7.8</version>
+        </dependency>
+
+
+        <dependency>
+            <groupId>com.dmall.fit</groupId>
+            <artifactId>fit-boot-spec-jackson</artifactId>
         </dependency>
 
         <dependency>

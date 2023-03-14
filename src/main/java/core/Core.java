@@ -17,6 +17,7 @@ import core.domain.EventBO;
 import core.domain.TraceContext;
 import core.listener.VltavaEventListener;
 import core.progress.VltavaProgress;
+import core.trace.RcbOpenKey;
 import core.trace.Tracer;
 import core.trace.TtlConcurrentAdvice;
 import http.HttpService;
@@ -25,13 +26,17 @@ import org.apache.dubbo.common.utils.PojoUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.kohsuke.MetaInfServices;
+import org.testng.annotations.Test;
+import util.FastJsonUtil;
 import util.LogbackUtils;
+
 import javax.annotation.Resource;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.testng.annotations.Test;
+
+import util.TLinx2Util;
 
 /**
  * @author Rob
@@ -44,7 +49,7 @@ public class Core implements Module, ModuleLifecycle {
     private static final String RPC_CONTEXT_CLASS = "org.apache.dubbo.rpc.RpcContext";
     private static final String HTTP_HEADER_CLASS = "org.springframework.web.context.request.RequestContextHolder";
     private static final String HTTP_ATTRIBUTES_CLASS = "org.springframework.web.context.request.ServletRequestAttributes";
-    private static final String REQUEST_FACADE ="org.apache.catalina.connector.RequestFacade";
+    private static final String REQUEST_FACADE = "org.apache.catalina.connector.RequestFacade";
     private static final String VLTAVA_MOCK_KEY = "vltavaMockKey";
     private static final Pattern PATTERN = Pattern.compile("(?<=vltavaMockKey\":\").*?(?=\",)");
     private static Boolean initConcurrent = true;
@@ -92,6 +97,7 @@ public class Core implements Module, ModuleLifecycle {
     public void loadCompleted() {
         logger.info("loadCompleted...");
     }
+
 
     public static Boolean start(String reference) {
         logger.info("##### start ");
@@ -234,12 +240,18 @@ public class Core implements Module, ModuleLifecycle {
                     logger.info(String.format("@" + beforeEvent.invokeId + "@ " + "will return expect value: %s", eventBO.getMatchedMockAction().getExpectValue()));
                     // mock数据中的${xxx}格式，从请求的参数中找到xxx的值来替换原mock数据
                     String mockData = formatStr(eventBO.getMatchedMockAction().getExpectValue(), beforeEvent.argumentArray);
-                    logger.info("替换变量后的返回结果为："+ mockData);
+                    logger.info("替换变量后的返回结果为：" + mockData);
+                    //判断支付请求是否是农商行，如果是农商行，需要对返回结果进行加密
+                    if (params.contains("https://api.sxpay.shanxinj.com/mct1/payorder")) {
+                        mockData = rcbSign(mockData);
+                    }
+
                     if (JSON.parseObject(mockData).containsKey("class")) {
                         returnObj = PojoUtils.realize(JSON.parseObject(mockData), method.getReturnType(), method.getGenericReturnType());
                     } else {
                         returnObj = JSON.parseObject(mockData, method.getGenericReturnType());
                     }
+
                     logger.info("即将返回的调用结果:" + JSONObject.toJSONString(returnObj));
                     ProcessController.returnImmediately(returnObj);
                 }
@@ -250,15 +262,57 @@ public class Core implements Module, ModuleLifecycle {
         }
     }
 
+    //山西农商行返回参数加密
+    private static String rcbSign(String mockData) {
+        RcbOpenKey rcbOpenKey = new RcbOpenKey();
+        String openKey = "8e942ca055b53f811e6e77cb047b8dcb";
+        String openId = "42a8aef029208f0e027a49cd0d63fb28";
+        rcbOpenKey.setOpenId(openId);
+        rcbOpenKey.setOpenKey(openKey);
+//        MethodInfo methodInfo = Monitor.methodStart(methodKey);
+        TreeMap<String, String> param = createCommonParam(rcbOpenKey);
+
+        String body = mockData;
+        try {
+            //1.data字段内容进行AES加密，再二进制转十六进制(bin2hex)
+            String bodyEncrypt = TLinx2Util.handleEncrypt(body, rcbOpenKey.getOpenKey());
+            param.put("data", bodyEncrypt);
+            param.put("msg","ok");
+            param.put("errcode","0");
+            //2 请求参数签名 按A~z排序，串联成字符串，先进行sha1加密(小写)，再进行md5加密(小写)，得到签名
+            TLinx2Util.handleSign(param, rcbOpenKey.getOpenKey());
+
+//            param.remove("open_id");
+
+            //请求参数密文
+            String requestEncrypt = FastJsonUtil.writeObjectAsString(param);
+
+            return requestEncrypt;
+
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            return null;
+        }
+    }
+
+    private static TreeMap<String, String> createCommonParam(RcbOpenKey rcbOpenKey) {
+        // 固定参数
+        Long timestamp = System.currentTimeMillis() / 1000;
+        TreeMap<String, String> commonParam = new TreeMap<String, String>();    // 请求参数的map
+        commonParam.put("open_id", rcbOpenKey.getOpenId());
+        commonParam.put("timestamp", String.valueOf(timestamp));
+        return commonParam;
+    }
+
     /*
         查找requestStr中包含"${}"格式的关键字，去response中查找到后并替换原requestStr的数据并返回
      */
-    public static String formatStr(String responseStr, Object[] request){
-        try{
+    public static String formatStr(String responseStr, Object[] request) {
+        try {
             Pattern pattern = Pattern.compile("\\$\\{([\\s\\S]+?)\\}");
             Matcher matcher = pattern.matcher(responseStr);
             StringBuffer stringBuffer = new StringBuffer();
-            while (matcher.find()){
+            while (matcher.find()) {
                 String substring = responseStr.substring(matcher.start(), matcher.end());
                 String k = matcher.group(1);
                 String targetV = String.valueOf(findKV(k, request));
@@ -266,32 +320,31 @@ public class Core implements Module, ModuleLifecycle {
             }
             matcher.appendTail(stringBuffer);
             return String.valueOf(stringBuffer);
-        } catch (Exception e){
+        } catch (Exception e) {
             logger.error(e.getMessage(), e);
             return responseStr;
         }
     }
 
 
-
     /*
       递归查找response对象中包含指定key的值
      */
-    public static Object findKV(String key, Object[] response){
-        for (Object obj: response) {
-            try{
-                if (obj instanceof List){
+    public static Object findKV(String key, Object[] response) {
+        for (Object obj : response) {
+            try {
+                if (obj instanceof List) {
                     Object[] objArr = ((List) obj).toArray();
                     return findKV(key, objArr);
                 }
-                if (obj instanceof Object[]){
+                if (obj instanceof Object[]) {
                     Object[] objArr = (Object[]) obj;
                     return findKV(key, objArr);
                 }
                 String objStr;
                 if (obj instanceof String) {
                     objStr = (String) obj;
-                }else {
+                } else {
                     objStr = JSON.toJSONString(obj);
                 }
                 JSONObject jsonObj = JSON.parseObject(objStr);
@@ -299,9 +352,9 @@ public class Core implements Module, ModuleLifecycle {
                     if (key.equals(entry.getKey())) {
                         return entry.getValue();
                     } else {
-                        Object [] objArray;
-                        if (entry.getValue().getClass().isArray()){
-                            objArray = (Object [])  entry.getValue();
+                        Object[] objArray;
+                        if (entry.getValue().getClass().isArray()) {
+                            objArray = (Object[]) entry.getValue();
                         } else {
                             objArray = new Object[]{entry.getValue()};
                         }
@@ -311,13 +364,12 @@ public class Core implements Module, ModuleLifecycle {
                         }
                     }
                 }
-            } catch (Exception e){
+            } catch (Exception e) {
                 continue;
             }
         }
         return null;
     }
-
 
 
 //    @Test
@@ -533,13 +585,13 @@ public class Core implements Module, ModuleLifecycle {
                     Object httpRequestFacade = getRequestAttributes.invoke(httpContext);//获取了一个RequestFacade类
                     Method getRequest = attributes.getMethod("getRequest");
                     Object request = getRequest.invoke(httpRequestFacade);//获取了一个RequestFacade类
-                    logger.info("request is "+request.toString());
+                    logger.info("request is " + request.toString());
 
-                    Method getFacadeRequest = facade.getMethod("getHeader",String.class);
-                    Object header = getFacadeRequest.invoke(request,"vltavaMockKey");
-                    logger.info("header is "+header.toString());
+                    Method getFacadeRequest = facade.getMethod("getHeader", String.class);
+                    Object header = getFacadeRequest.invoke(request, "vltavaMockKey");
+                    logger.info("header is " + header.toString());
                     contextStr = header.toString();
-                    if (contextStr!=null) {
+                    if (contextStr != null) {
                         logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + contextStr);
                         eventBO.setMockKey(contextStr);
                         setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, contextStr);
@@ -549,9 +601,19 @@ public class Core implements Module, ModuleLifecycle {
                     logger.info(e.getMessage());
                 }
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             logger.info(e.getMessage());
             e.printStackTrace();
         }
     }
+
+
+    @Test
+    public static void test() {
+//        String mockData="{\"ord_no\":\"9167877864617048258756682\",\"ord_mct_id\":\"2212687054\",\"ord_shop_id\":\"2212687054\",\"ord_currency\":\"CNY\",\"currency_sign\":\"\\u00a5\",\"pmt_tag\":\"WeixinSN2\",\"pmt_name\":\"\\u5fae\\u4fe1\\u652f\\u4ed8\",\"trade_no\":\"4200059246202303148964150178\",\"trade_amount\":\"3441\",\"trade_qrcode\":null,\"trade_account\":\"oJNTV0ZGfP5SiBTSVwSgEfEA7HOs\",\"trade_result\":\"{\\\"return_code\\\":\\\"SUCCESS\\\",\\\"return_msg\\\":[],\\\"appid\\\":\\\"wxdb5f93f24605b962\\\",\\\"mch_id\\\":\\\"1513869461\\\",\\\"sub_mch_id\\\":\\\"544177450\\\",\\\"nonce_str\\\":\\\"b6bbcaa434484d418f6702204197df52\\\",\\\"result_code\\\":\\\"SUCCESS\\\",\\\"openid\\\":\\\"oJNTV0ZGfP5SiBTSVwSgEfEA7HOs\\\",\\\"trade_type\\\":\\\"MICROPAY\\\",\\\"bank_type\\\":\\\"OTHERS\\\",\\\"fee_type\\\":\\\"CNY\\\",\\\"total_fee\\\":\\\"3441\\\",\\\"cash_fee_type\\\":\\\"CNY\\\",\\\"cash_fee\\\":\\\"3441\\\",\\\"settlement_total_fee\\\":\\\"3441\\\",\\\"coupon_fee\\\":\\\"0\\\",\\\"transaction_id\\\":\\\"4200059246202303148964150178\\\",\\\"out_trade_no\\\":\\\"9167877864617048258756682\\\",\\\"attach\\\":\\\"bank_mch_name=\\\\u5c71\\\\u897f\\\\u9f99\\\\u5174\\\\u798f\\\\u5546\\\\u8d38\\\\u6709\\\\u9650\\\\u516c\\\\u53f8&bank_mch_id=860984435\\\",\\\"time_end\\\":\\\"20230314152407\\\",\\\"sign\\\":\\\"MEUCIFAke3hwbFZyY6VGE2rik8SfEw97DiscE7vIwvnMJ8jwAiEAh3FY24PKfOwSZlCyyqHX+lHxRmgZ+3buenDSB7W3QXg=\\\"}\",\"trade_pay_time\":\"2023-03-14 15:24:07\",\"trade_discout_amount\":\"0\",\"status\":\"1\",\"out_no\":\"29006616787786460314152403007766\",\"discount_amount\":\"0\"}";
+       String mockData="{\"ord_id\":\"2147920950\",\"ord_no\":\"9167705372970938039330173\",\"ord_type\":\"2\",\"ord_mct_id\":\"2147920950\",\"ord_shop_id\":\"2147920950\",\"ord_name\":\"(\\u9000\\u6b3e)WeixinSN2-9167722296074920093963567\",\"add_time\":\"2023-02-24 15:20:19\",\"trade_account\":null,\"trade_amount\":\"2477\",\"trade_time\":\"2023-02-24 15:20:20\",\"trade_no\":\"4200057835202302229269928572\",\"trade_qrcode\":null,\"trade_pay_time\":\"2023-02-24 15:20:20\",\"remark\":null,\"status\":\"1\",\"original_amount\":\"12724\",\"discount_amount\":\"0\",\"ignore_amount\":\"0\",\"trade_discout_amount\":\"0\",\"original_ord_no\":\"9167722296074920093963567\",\"trade_result\":\"{\\\"return_code\\\":\\\"SUCCESS\\\",\\\"appid\\\":\\\"wxdb5f93f24605b962\\\",\\\"mch_id\\\":\\\"1513869461\\\",\\\"sub_mch_id\\\":\\\"544177450\\\",\\\"result_code\\\":\\\"SUCCESS\\\",\\\"nonce_str\\\":\\\"58242f74e91741d599237c5a7bd3ce8c\\\",\\\"out_refund_no\\\":\\\"9167705372970938039330173\\\",\\\"refund_id\\\":\\\"4200057835202302229269928572\\\",\\\"refund_fee\\\":\\\"2477\\\",\\\"cash_refund_fee\\\":\\\"2477\\\",\\\"coupon_refund_fee\\\":\\\"0\\\",\\\"sign\\\":\\\"MEUCIQD3eL6qWaX0vvadV3K0TQhhAVeoNDRSs5+SnFVBV3h2ZQIgBgVgPBtMZ1E\\\\\\/5D4EO6aEFXXXNI5hhLYOGxp8D5oZh80=\\\"}\",\"currency\":\"CNY\",\"currency_sign\":\"\\u00a5\",\"out_no\":\"29006616770537290222161502008366\",\"pmt_tag\":\"WeixinSN2\",\"pmt_name\":\"\\u5fae\\u4fe1\\u652f\\u4ed8\",\"tag\":null,\"scr_id\":\"0\",\"shop_no\":\"860984435\",\"tml_no\":\"0\",\"ord_trade_no2\":null,\"ord_credit_card\":\"1\"}";
+
+        System.out.println(rcbSign(mockData));
+    }
+
 }
