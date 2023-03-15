@@ -214,14 +214,18 @@ public class Core implements Module, ModuleLifecycle {
             }
             // 非入口
             logger.info("1111111111111112");
-            SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
-            Integer time;
-            if (sleepTimeVO.getNeedRandom() == 1) {
-                time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
-            } else {
-                time = sleepTimeVO.getBaseTime();
+            try {
+                SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
+                Integer time;
+                if (sleepTimeVO.getNeedRandom() == 1) {
+                    time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
+                } else {
+                    time = sleepTimeVO.getBaseTime();
+                }
+                Thread.sleep(time);
+            }catch(Exception e){
+                logger.info("未获取到休眠时间，不休眠");
             }
-            Thread.sleep(time);
             Tracer.getContext().startInvoke(beforeEvent);
         }
         if (eventBO.getMatchedMockAction().getMockType().equals(MockTypeEnum.RETURN_VALUE.getKey())) {
