@@ -11,10 +11,7 @@ import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import com.dmall.fit.boot.spec.jackson.utils.JSONUtil;
 
-/**
- * @Author: Kalance
- * @Date: 2018/12/21 14:42
- */
+
 public class FastJsonUtil {
     public final static String JSON_ERROR = "JSON Not allowed to be empty";
     //Default serializer property

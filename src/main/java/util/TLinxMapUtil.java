@@ -12,13 +12,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-/**
- * @Class: TLinxMapUtil.java
- * @Description:
- * @Author：caiqf
- * @Date�?014-10-11
- */
-@SuppressWarnings("all")
 public class TLinxMapUtil {
     private Map map = new HashMap();
     private Set keySet = map.keySet();

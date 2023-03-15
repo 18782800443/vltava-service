@@ -7,10 +7,7 @@ package util;
 
 import java.security.MessageDigest;
 
-/**
- * @Class: TLinxSHA1.java
- * @Description: SHA-1������
- */
+
 public class TLinxSHA1 {
     public static String SHA1(String decript) {
         try {

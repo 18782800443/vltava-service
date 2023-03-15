@@ -8,10 +8,12 @@ import com.alibaba.jvm.sandbox.api.event.*;
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatchBuilder;
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatcher;
 import com.alibaba.jvm.sandbox.api.resource.ModuleEventWatcher;
+import com.dmall.fit.boot.spec.jackson.utils.JSONUtil;
 import com.dmall.vltava.domain.enums.MockTypeEnum;
 import com.dmall.vltava.domain.enums.TaskStatusEnum;
 import com.dmall.vltava.domain.mock.MockActionVO;
 import com.dmall.vltava.domain.mock.SleepTimeVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import core.domain.CoreBO;
 import core.domain.EventBO;
 import core.domain.TraceContext;
@@ -37,6 +39,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import util.TLinx2Util;
+import util.TLinxAESCoder;
 
 /**
  * @author Rob
@@ -239,13 +242,25 @@ public class Core implements Module, ModuleLifecycle {
                     updateDynamic(eventBO, beforeEvent);
                     logger.info(String.format("@" + beforeEvent.invokeId + "@ " + "will return expect value: %s", eventBO.getMatchedMockAction().getExpectValue()));
                     // mock数据中的${xxx}格式，从请求的参数中找到xxx的值来替换原mock数据
-                    String mockData = formatStr(eventBO.getMatchedMockAction().getExpectValue(), beforeEvent.argumentArray);
+                    String mockData="";
+                    if (params.contains("https://api.sxpay.shanxinj.com/mct1/payorder")) {
+                        logger.info("========================解密=======================");
+                        String request = rcbDecrypt(JSON.toJSONString(beforeEvent.argumentArray[1]));
+                        logger.info("请求参数是：%s",request);
+                        logger.info("========================创建新对象=======================");
+                        Object[] reqObj = new Object[1];
+                        reqObj[0] = request;
+                        logger.info("========================替换参数=======================");
+                        mockData = formatStr(eventBO.getMatchedMockAction().getExpectValue(), reqObj);
+                    }
+                    else {
+                        mockData = formatStr(eventBO.getMatchedMockAction().getExpectValue(), beforeEvent.argumentArray);
+                    }
                     logger.info("替换变量后的返回结果为：" + mockData);
                     //判断支付请求是否是农商行，如果是农商行，需要对返回结果进行加密
                     if (params.contains("https://api.sxpay.shanxinj.com/mct1/payorder")) {
                         mockData = rcbSign(mockData);
                     }
-
                     if (JSON.parseObject(mockData).containsKey("class")) {
                         returnObj = PojoUtils.realize(JSON.parseObject(mockData), method.getReturnType(), method.getGenericReturnType());
                     } else {
@@ -277,8 +292,8 @@ public class Core implements Module, ModuleLifecycle {
             //1.data字段内容进行AES加密，再二进制转十六进制(bin2hex)
             String bodyEncrypt = TLinx2Util.handleEncrypt(body, rcbOpenKey.getOpenKey());
             param.put("data", bodyEncrypt);
-            param.put("msg","ok");
-            param.put("errcode","0");
+            param.put("msg", "ok");
+            param.put("errcode", "0");
             //2 请求参数签名 按A~z排序，串联成字符串，先进行sha1加密(小写)，再进行md5加密(小写)，得到签名
             TLinx2Util.handleSign(param, rcbOpenKey.getOpenKey());
 
@@ -294,6 +309,37 @@ public class Core implements Module, ModuleLifecycle {
             return null;
         }
     }
+
+    //山西农商行请求参数解密
+    private static String rcbDecrypt(String request) {
+        RcbOpenKey rcbOpenKey = new RcbOpenKey();
+        String openKey = "8e942ca055b53f811e6e77cb047b8dcb";
+        String openId = "42a8aef029208f0e027a49cd0d63fb28";
+        rcbOpenKey.setOpenId(openId);
+        rcbOpenKey.setOpenKey(openKey);
+
+        //拿到响应结果后需要验证签名
+        try {
+            JSONObject req = JSON.parseObject(request);
+            if (StringUtils.isNotEmpty(req.getString("data"))) {
+                Boolean checkSign = TLinx2Util.verifySign(JSONObject.parseObject(request), rcbOpenKey.getOpenKey());
+                if (checkSign) {
+                    String reqData = TLinxAESCoder.decrypt(req.getString("data"), rcbOpenKey.getOpenKey());
+                    return reqData;
+                } else {
+                    System.out.println("验签失败");
+                    return null;
+                }
+            } else {
+                return null;
+            }
+
+        } catch (Exception e) {
+            logger.error(e.getMessage(), e);
+            return null;
+        }
+    }
+
 
     private static TreeMap<String, String> createCommonParam(RcbOpenKey rcbOpenKey) {
         // 固定参数
@@ -353,6 +399,9 @@ public class Core implements Module, ModuleLifecycle {
                         return entry.getValue();
                     } else {
                         Object[] objArray;
+                        if (entry.getValue() == null){
+                            continue;
+                        }
                         if (entry.getValue().getClass().isArray()) {
                             objArray = (Object[]) entry.getValue();
                         } else {
@@ -610,10 +659,34 @@ public class Core implements Module, ModuleLifecycle {
 
     @Test
     public static void test() {
-//        String mockData="{\"ord_no\":\"9167877864617048258756682\",\"ord_mct_id\":\"2212687054\",\"ord_shop_id\":\"2212687054\",\"ord_currency\":\"CNY\",\"currency_sign\":\"\\u00a5\",\"pmt_tag\":\"WeixinSN2\",\"pmt_name\":\"\\u5fae\\u4fe1\\u652f\\u4ed8\",\"trade_no\":\"4200059246202303148964150178\",\"trade_amount\":\"3441\",\"trade_qrcode\":null,\"trade_account\":\"oJNTV0ZGfP5SiBTSVwSgEfEA7HOs\",\"trade_result\":\"{\\\"return_code\\\":\\\"SUCCESS\\\",\\\"return_msg\\\":[],\\\"appid\\\":\\\"wxdb5f93f24605b962\\\",\\\"mch_id\\\":\\\"1513869461\\\",\\\"sub_mch_id\\\":\\\"544177450\\\",\\\"nonce_str\\\":\\\"b6bbcaa434484d418f6702204197df52\\\",\\\"result_code\\\":\\\"SUCCESS\\\",\\\"openid\\\":\\\"oJNTV0ZGfP5SiBTSVwSgEfEA7HOs\\\",\\\"trade_type\\\":\\\"MICROPAY\\\",\\\"bank_type\\\":\\\"OTHERS\\\",\\\"fee_type\\\":\\\"CNY\\\",\\\"total_fee\\\":\\\"3441\\\",\\\"cash_fee_type\\\":\\\"CNY\\\",\\\"cash_fee\\\":\\\"3441\\\",\\\"settlement_total_fee\\\":\\\"3441\\\",\\\"coupon_fee\\\":\\\"0\\\",\\\"transaction_id\\\":\\\"4200059246202303148964150178\\\",\\\"out_trade_no\\\":\\\"9167877864617048258756682\\\",\\\"attach\\\":\\\"bank_mch_name=\\\\u5c71\\\\u897f\\\\u9f99\\\\u5174\\\\u798f\\\\u5546\\\\u8d38\\\\u6709\\\\u9650\\\\u516c\\\\u53f8&bank_mch_id=860984435\\\",\\\"time_end\\\":\\\"20230314152407\\\",\\\"sign\\\":\\\"MEUCIFAke3hwbFZyY6VGE2rik8SfEw97DiscE7vIwvnMJ8jwAiEAh3FY24PKfOwSZlCyyqHX+lHxRmgZ+3buenDSB7W3QXg=\\\"}\",\"trade_pay_time\":\"2023-03-14 15:24:07\",\"trade_discout_amount\":\"0\",\"status\":\"1\",\"out_no\":\"29006616787786460314152403007766\",\"discount_amount\":\"0\"}";
-       String mockData="{\"ord_id\":\"2147920950\",\"ord_no\":\"9167705372970938039330173\",\"ord_type\":\"2\",\"ord_mct_id\":\"2147920950\",\"ord_shop_id\":\"2147920950\",\"ord_name\":\"(\\u9000\\u6b3e)WeixinSN2-9167722296074920093963567\",\"add_time\":\"2023-02-24 15:20:19\",\"trade_account\":null,\"trade_amount\":\"2477\",\"trade_time\":\"2023-02-24 15:20:20\",\"trade_no\":\"4200057835202302229269928572\",\"trade_qrcode\":null,\"trade_pay_time\":\"2023-02-24 15:20:20\",\"remark\":null,\"status\":\"1\",\"original_amount\":\"12724\",\"discount_amount\":\"0\",\"ignore_amount\":\"0\",\"trade_discout_amount\":\"0\",\"original_ord_no\":\"9167722296074920093963567\",\"trade_result\":\"{\\\"return_code\\\":\\\"SUCCESS\\\",\\\"appid\\\":\\\"wxdb5f93f24605b962\\\",\\\"mch_id\\\":\\\"1513869461\\\",\\\"sub_mch_id\\\":\\\"544177450\\\",\\\"result_code\\\":\\\"SUCCESS\\\",\\\"nonce_str\\\":\\\"58242f74e91741d599237c5a7bd3ce8c\\\",\\\"out_refund_no\\\":\\\"9167705372970938039330173\\\",\\\"refund_id\\\":\\\"4200057835202302229269928572\\\",\\\"refund_fee\\\":\\\"2477\\\",\\\"cash_refund_fee\\\":\\\"2477\\\",\\\"coupon_refund_fee\\\":\\\"0\\\",\\\"sign\\\":\\\"MEUCIQD3eL6qWaX0vvadV3K0TQhhAVeoNDRSs5+SnFVBV3h2ZQIgBgVgPBtMZ1E\\\\\\/5D4EO6aEFXXXNI5hhLYOGxp8D5oZh80=\\\"}\",\"currency\":\"CNY\",\"currency_sign\":\"\\u00a5\",\"out_no\":\"29006616770537290222161502008366\",\"pmt_tag\":\"WeixinSN2\",\"pmt_name\":\"\\u5fae\\u4fe1\\u652f\\u4ed8\",\"tag\":null,\"scr_id\":\"0\",\"shop_no\":\"860984435\",\"tml_no\":\"0\",\"ord_trade_no2\":null,\"ord_credit_card\":\"1\"}";
+        logger.info("========================解密=======================");
+        ClassLoader s = new ClassLoader() {
+            @Override
+            public Class<?> loadClass(String name) throws ClassNotFoundException {
+                return super.loadClass(name);
+            }
+        };
+        Object[] argumentArray= new Object[2];
+        argumentArray[0] = "https://api.sxpay.shanxinj.com/mct1/payorder";
+        argumentArray[1] = "{\"data\":\"7c823fa631791803d472288d892cedcd3de8ce45cc2af217e3a22df4ce71a76b614b856fb0aeb840531be8f18cf6b44b2179bf75ca6ecd5b85eabfe729ba5111a3685bef20d6ffd0797e1abff58734ce539a44aa304de7cf2288112165f056c48496139cd4abd97fa90e33d534a53c7940c996525e1836d62ea6cd9dbb95a344eab004cf400fbc8f5aef863b4fd56f9cc59b22251e280c0e121e22b9f021cd26bec85d44e6a7b2be97dd1d5a01ea209a692b071fac29a6f57bacb1f0a6bb84a9eb0fb0f95024df1860363bcae1a07f17ab48f6c6a1df67d2c710f9fa881423c7127c486f8ad2eb7889388859af888cd16ad1e4c082342ca2ae75f11dbe9603be96a90f107fadfefc843bc24d78690be1\",\"open_id\":\"42a8aef029208f0e027a49cd0d63fb28\",\"sign\":\"e67949c644d09298e605c0d84d2fd2c2\",\"timestamp\":\"1678858604\"}";
+        BeforeEvent beforeEvent =  new BeforeEvent(213,21, s, "12","","","",argumentArray);
+        String request = rcbDecrypt(beforeEvent.argumentArray[1].toString());
+        Object[] reqObj = new Object[1];
+//        reqObj[0] = "https://api.sxpay.shanxinj.com/mct1/payorder";
+        reqObj[0] = request;
+        System.out.println(reqObj[0]);
+//        findKV("trade_amount",reqObj);
+        String responseStr = "{\"ord_id\":\"2147920950\",\"ord_no\":\"9167705372970938039330173\",\"ord_type\":\"2\",\"ord_mct_id\":\"2147920950\",\"ord_shop_id\":\"2147920950\",\"ord_name\":\"(\\u9000\\u6b3e)WeixinSN2-9167722296074920093963567\",\"add_time\":\"2023-02-24 15:20:19\",\"trade_account\":null,\"trade_amount\":\"${trade_amount}\",\"trade_time\":\"2023-02-24 15:20:20\",\"trade_no\":\"4200057835202302229269928572\",\"trade_qrcode\":null,\"trade_pay_time\":\"2023-02-24 15:20:20\",\"remark\":null,\"status\":\"1\",\"original_amount\":\"12724\",\"discount_amount\":\"0\",\"ignore_amount\":\"0\",\"trade_discout_amount\":\"0\",\"original_ord_no\":\"9167722296074920093963567\",\"trade_result\":\"{\\\"return_code\\\":\\\"SUCCESS\\\",\\\"appid\\\":\\\"wxdb5f93f24605b962\\\",\\\"mch_id\\\":\\\"1513869461\\\",\\\"sub_mch_id\\\":\\\"544177450\\\",\\\"result_code\\\":\\\"SUCCESS\\\",\\\"nonce_str\\\":\\\"58242f74e91741d599237c5a7bd3ce8c\\\",\\\"out_refund_no\\\":\\\"9167705372970938039330173\\\",\\\"refund_id\\\":\\\"4200057835202302229269928572\\\",\\\"refund_fee\\\":\\\"2477\\\",\\\"cash_refund_fee\\\":\\\"2477\\\",\\\"coupon_refund_fee\\\":\\\"0\\\",\\\"sign\\\":\\\"MEUCIQD3eL6qWaX0vvadV3K0TQhhAVeoNDRSs5+SnFVBV3h2ZQIgBgVgPBtMZ1E\\\\\\/5D4EO6aEFXXXNI5hhLYOGxp8D5oZh80=\\\"}\",\"currency\":\"CNY\",\"currency_sign\":\"\\u00a5\",\"out_no\":\"${out_no}\",\"pmt_tag\":\"WeixinSN2\",\"pmt_name\":\"\\u5fae\\u4fe1\\u652f\\u4ed8\",\"tag\":null,\"scr_id\":\"0\",\"shop_no\":\"860984435\",\"tml_no\":\"0\",\"ord_trade_no2\":null,\"ord_credit_card\":\"1\"}";
+        String result = formatStr(responseStr,reqObj);
+        System.out.println(result);
 
-        System.out.println(rcbSign(mockData));
+
+//        String mockData="{\"ord_no\":\"9167877864617048258756682\",\"ord_mct_id\":\"2212687054\",\"ord_shop_id\":\"2212687054\",\"ord_currency\":\"CNY\",\"currency_sign\":\"\\u00a5\",\"pmt_tag\":\"WeixinSN2\",\"pmt_name\":\"\\u5fae\\u4fe1\\u652f\\u4ed8\",\"trade_no\":\"4200059246202303148964150178\",\"trade_amount\":\"3441\",\"trade_qrcode\":null,\"trade_account\":\"oJNTV0ZGfP5SiBTSVwSgEfEA7HOs\",\"trade_result\":\"{\\\"return_code\\\":\\\"SUCCESS\\\",\\\"return_msg\\\":[],\\\"appid\\\":\\\"wxdb5f93f24605b962\\\",\\\"mch_id\\\":\\\"1513869461\\\",\\\"sub_mch_id\\\":\\\"544177450\\\",\\\"nonce_str\\\":\\\"b6bbcaa434484d418f6702204197df52\\\",\\\"result_code\\\":\\\"SUCCESS\\\",\\\"openid\\\":\\\"oJNTV0ZGfP5SiBTSVwSgEfEA7HOs\\\",\\\"trade_type\\\":\\\"MICROPAY\\\",\\\"bank_type\\\":\\\"OTHERS\\\",\\\"fee_type\\\":\\\"CNY\\\",\\\"total_fee\\\":\\\"3441\\\",\\\"cash_fee_type\\\":\\\"CNY\\\",\\\"cash_fee\\\":\\\"3441\\\",\\\"settlement_total_fee\\\":\\\"3441\\\",\\\"coupon_fee\\\":\\\"0\\\",\\\"transaction_id\\\":\\\"4200059246202303148964150178\\\",\\\"out_trade_no\\\":\\\"9167877864617048258756682\\\",\\\"attach\\\":\\\"bank_mch_name=\\\\u5c71\\\\u897f\\\\u9f99\\\\u5174\\\\u798f\\\\u5546\\\\u8d38\\\\u6709\\\\u9650\\\\u516c\\\\u53f8&bank_mch_id=860984435\\\",\\\"time_end\\\":\\\"20230314152407\\\",\\\"sign\\\":\\\"MEUCIFAke3hwbFZyY6VGE2rik8SfEw97DiscE7vIwvnMJ8jwAiEAh3FY24PKfOwSZlCyyqHX+lHxRmgZ+3buenDSB7W3QXg=\\\"}\",\"trade_pay_time\":\"2023-03-14 15:24:07\",\"trade_discout_amount\":\"0\",\"status\":\"1\",\"out_no\":\"29006616787786460314152403007766\",\"discount_amount\":\"0\"}";
+//        String mockData = "{\"ord_id\":\"2147920950\",\"ord_no\":\"9167705372970938039330173\",\"ord_type\":\"2\",\"ord_mct_id\":\"2147920950\",\"ord_shop_id\":\"2147920950\",\"ord_name\":\"(\\u9000\\u6b3e)WeixinSN2-9167722296074920093963567\",\"add_time\":\"2023-02-24 15:20:19\",\"trade_account\":null,\"trade_amount\":\"2477\",\"trade_time\":\"2023-02-24 15:20:20\",\"trade_no\":\"4200057835202302229269928572\",\"trade_qrcode\":null,\"trade_pay_time\":\"2023-02-24 15:20:20\",\"remark\":null,\"status\":\"1\",\"original_amount\":\"12724\",\"discount_amount\":\"0\",\"ignore_amount\":\"0\",\"trade_discout_amount\":\"0\",\"original_ord_no\":\"9167722296074920093963567\",\"trade_result\":\"{\\\"return_code\\\":\\\"SUCCESS\\\",\\\"appid\\\":\\\"wxdb5f93f24605b962\\\",\\\"mch_id\\\":\\\"1513869461\\\",\\\"sub_mch_id\\\":\\\"544177450\\\",\\\"result_code\\\":\\\"SUCCESS\\\",\\\"nonce_str\\\":\\\"58242f74e91741d599237c5a7bd3ce8c\\\",\\\"out_refund_no\\\":\\\"9167705372970938039330173\\\",\\\"refund_id\\\":\\\"4200057835202302229269928572\\\",\\\"refund_fee\\\":\\\"2477\\\",\\\"cash_refund_fee\\\":\\\"2477\\\",\\\"coupon_refund_fee\\\":\\\"0\\\",\\\"sign\\\":\\\"MEUCIQD3eL6qWaX0vvadV3K0TQhhAVeoNDRSs5+SnFVBV3h2ZQIgBgVgPBtMZ1E\\\\\\/5D4EO6aEFXXXNI5hhLYOGxp8D5oZh80=\\\"}\",\"currency\":\"CNY\",\"currency_sign\":\"\\u00a5\",\"out_no\":\"29006616770537290222161502008366\",\"pmt_tag\":\"WeixinSN2\",\"pmt_name\":\"\\u5fae\\u4fe1\\u652f\\u4ed8\",\"tag\":null,\"scr_id\":\"0\",\"shop_no\":\"860984435\",\"tml_no\":\"0\",\"ord_trade_no2\":null,\"ord_credit_card\":\"1\"}";
+////        String result ="{\"data\":\"c0080d4ef28e1880ca350baded22fdb7ec7c27d4b70e24088014ae494d0c8b8ebefcf62aae5dd906f27103ce221897f1be6ae619b0aa1d1a4a12a6ba3223573b\",\"open_id\":\"42a8aef029208f0e027a49cd0d63fb28\",\"sign\":\"61cdffeb459bfef37f23d866cefcc307\",\"timestamp\":\"1678779292\"}";
+////        String result ="{\"data\":\"c0080d4ef28e1880ca350baded22fdb7f5bba86d9d3f11a00b7dd6a8c8f2ddebac2993304fdd8ea050f0d9ddaefb25fe3430b22253279dbdd683dd6f0325b185\",\"open_id\":\"42a8aef029208f0e027a49cd0d63fb28\",\"sign\":\"94073e4fa1d0704a717f20617a39a1c3\",\"timestamp\":\"1678795203\"}";
+//        String result = rcbSign(mockData);
+//        System.out.println(rcbDecrypt(result));
     }
 
 }

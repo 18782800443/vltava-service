@@ -8,12 +8,7 @@ package util;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
-/**
- * @Class: TLinxAESCoder.java
- * @Description: AES加解密类
- * @Author：caiqf
- * @Date：2016-4-12
- */
+
 public class TLinxAESCoder {
     private static String CIPHER_ALGORITHM = "AES/ECB/PKCS5Padding";
     private static String KEY_ALGORITHM = "AES";

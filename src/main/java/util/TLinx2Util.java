@@ -6,21 +6,12 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 
-/**
- * @Author:Kalance
- * @Date:2022-07-19 20:57
- * @Description：
- **/
+
 public class TLinx2Util {
     private final static String OPEN_KEY = "open_key";
     private final static String SIGN = "sign";
 
-    /**
-     * 签名
-     *
-     * @param postMap
-     * @return
-     */
+
     public static String sign(Map<String, String> postMap) {
         String sign = null;
         try {
@@ -36,12 +27,7 @@ public class TLinx2Util {
         return sign;
     }
 
-    /**
-     * 验证签名
-     *
-     * @param respObject
-     * @return
-     */
+
     public static Boolean verifySign(JSONObject respObject, String openKey) {
         String respSign = respObject.get(SIGN).toString();
         respObject.remove(SIGN);    // 删除sign节点
@@ -54,20 +40,12 @@ public class TLinx2Util {
         return false;
     }
 
-    /**
-     * AES加密，再二进制转十六进制(bin2hex)
-     *
-     * @throws Exception
-     */
+
     public static String handleEncrypt(String body, String openKey) throws Exception {
         return TLinxAESCoder.encrypt(body, openKey);    // AES加密，并bin2hex
     }
 
-    /**
-     * 签名
-     *
-     * @param postMap
-     */
+
     public static void handleSign(TreeMap<String, String> postMap, String openKey) {
         Map<String, String> veriDataMap = new HashMap<String, String>();
         veriDataMap.putAll(postMap);
@@ -77,9 +55,7 @@ public class TLinx2Util {
         postMap.put(SIGN, sign);
     }
 
-    /**
-     * 十六进制字符串转byte数组
-     */
+
     public static byte[] hex2byte(String strhex) {
         if (strhex == null) {
             return null;
@@ -94,9 +70,7 @@ public class TLinx2Util {
         return b;
     }
 
-    /**
-     * byte数组转十六进制字符串
-     */
+
     public static String byte2hex(byte[] result) {
         StringBuffer sb = new StringBuffer(result.length * 2);
         for (int i = 0; i < result.length; i++) {
@@ -108,13 +82,7 @@ public class TLinx2Util {
         return sb.toString();
     }
 
-    /**
-     * 排序
-     *
-     * @param paramMap
-     * @return
-     * @throws Exception
-     */
+
     public static String sort(Map paramMap) throws Exception {
         String sort = "";
         TLinxMapUtil signMap = new TLinxMapUtil();
