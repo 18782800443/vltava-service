@@ -42,12 +42,10 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <!-- Import dependency management from Spring Boot -->
                 <groupId>com.dmall.fit</groupId>
                 <artifactId>fit-boot-dependencies</artifactId>
-                <version>1.0.8-RELEASE</version>
+                <version>1.0.10-RELEASE</version>
                 <type>pom</type>
-                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -65,7 +63,9 @@
         <dependency>
             <groupId>com.dmall.fit</groupId>
             <artifactId>fit-boot-spec-jackson</artifactId>
+            <version>1.0.8-RELEASE</version>
         </dependency>
+
 
         <dependency>
             <groupId>org.apache.commons</groupId>
