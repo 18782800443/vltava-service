@@ -623,14 +623,14 @@ public class Core implements Module, ModuleLifecycle {
                 e.printStackTrace();
             }
 //            assert rpcContext != null;
-//            Method setAttachment = rpcContext.getMethod("setAttachment");
+            Method setAttachment = rpcContext.getMethod("setAttachment");
             if (contextStr.contains(VLTAVA_MOCK_KEY)) {
                 Matcher matcher = PATTERN.matcher(contextStr);
                 if (matcher.find()) {
                     String mockKey = matcher.group(0);
                     logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + mockKey);
                     eventBO.setMockKey(mockKey);
-//                    setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, mockKey);
+                    setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, mockKey);
                 }
             } else {
                 try {
@@ -648,7 +648,7 @@ public class Core implements Module, ModuleLifecycle {
                     if (contextStr != "") {
                         logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + contextStr);
                         eventBO.setMockKey(contextStr);
-//                        setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, contextStr);
+                        setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, contextStr);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
