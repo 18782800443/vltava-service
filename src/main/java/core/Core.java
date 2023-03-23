@@ -513,7 +513,7 @@ public class Core implements Module, ModuleLifecycle {
             e.printStackTrace();
         }
         try {
-            String contextStr = null;
+            String contextStr = "";
             try {
                 //使用类的ClassLoader获取调用时的RPCContext里面的数据，可以对这里进行改造，增加如果是Http请求的情况
                 logger.info(beforeEvent.javaClassName + " ##处理RPC的隐式参数...");
@@ -547,7 +547,7 @@ public class Core implements Module, ModuleLifecycle {
                     Object header = getFacadeRequest.invoke(request,"vltavaMockKey");
                     logger.info("header is "+header.toString());
                     contextStr = header.toString();
-                    if (contextStr!=null) {
+                    if (contextStr != "") {
                         logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + contextStr);
                         eventBO.setMockKey(contextStr);
 //                        setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, contextStr);
