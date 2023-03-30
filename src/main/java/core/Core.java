@@ -32,6 +32,7 @@ import org.testng.annotations.Test;
 import util.FastJsonUtil;
 import util.LogbackUtils;
 
+
 import javax.annotation.Resource;
 import java.lang.reflect.Method;
 import java.util.*;
@@ -214,18 +215,14 @@ public class Core implements Module, ModuleLifecycle {
             }
             // 非入口
             logger.info("1111111111111112");
-            try {
-                SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
-                Integer time;
-                if (sleepTimeVO.getNeedRandom() == 1) {
-                    time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
-                } else {
-                    time = sleepTimeVO.getBaseTime();
-                }
-                Thread.sleep(time);
-            }catch(Exception e){
-                logger.info("未获取到休眠时间，不休眠");
+            SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
+            Integer time;
+            if (sleepTimeVO.getNeedRandom() == 1) {
+                time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
+            } else {
+                time = sleepTimeVO.getBaseTime();
             }
+            Thread.sleep(time);
             Tracer.getContext().startInvoke(beforeEvent);
         }
         if (eventBO.getMatchedMockAction().getMockType().equals(MockTypeEnum.RETURN_VALUE.getKey())) {
@@ -248,6 +245,7 @@ public class Core implements Module, ModuleLifecycle {
                     // mock数据中的${xxx}格式，从请求的参数中找到xxx的值来替换原mock数据
                     String mockData="";
                     if (params.contains("https://api.sxpay.shanxinj.com/mct1/payorder")) {
+//                        RpcContext.getContext().setAttachment("vltavaMockKey",mockKey);
                         logger.info("========================解密=======================");
                         String request = rcbDecrypt(JSON.toJSONString(beforeEvent.argumentArray[1]));
                         logger.info("请求参数是：%s",request);
@@ -611,7 +609,7 @@ public class Core implements Module, ModuleLifecycle {
             e.printStackTrace();
         }
         try {
-            String contextStr = null;
+            String contextStr = "";
             try {
                 //使用类的ClassLoader获取调用时的RPCContext里面的数据，可以对这里进行改造，增加如果是Http请求的情况
                 logger.info(beforeEvent.javaClassName + " ##处理RPC的隐式参数...");
@@ -622,15 +620,14 @@ public class Core implements Module, ModuleLifecycle {
                 logger.info(e.getMessage());
                 e.printStackTrace();
             }
-//            assert rpcContext != null;
-//            Method setAttachment = rpcContext.getMethod("setAttachment");
+            Method setAttachment = rpcContext.getMethod("setAttachment");
             if (contextStr.contains(VLTAVA_MOCK_KEY)) {
                 Matcher matcher = PATTERN.matcher(contextStr);
                 if (matcher.find()) {
                     String mockKey = matcher.group(0);
                     logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + mockKey);
                     eventBO.setMockKey(mockKey);
-//                    setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, mockKey);
+                    setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, mockKey);
                 }
             } else {
                 try {
@@ -645,10 +642,10 @@ public class Core implements Module, ModuleLifecycle {
                     Object header = getFacadeRequest.invoke(request, "vltavaMockKey");
                     logger.info("header is " + header.toString());
                     contextStr = header.toString();
-                    if (contextStr != null) {
+                    if (contextStr != "") {
                         logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + contextStr);
                         eventBO.setMockKey(contextStr);
-//                        setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, contextStr);
+                        setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, contextStr);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
