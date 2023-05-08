@@ -2,6 +2,7 @@ package core.domain;
 
 import com.dmall.vltava.domain.mock.MockActionVO;
 
+import java.util.HashMap;
 import java.util.UUID;
 
 /**
@@ -12,6 +13,11 @@ public class EventBO {
     private String mockKey;
     private MockActionVO matchedMockAction;
     private String reference;
+    //小程序单，则需要自动回调支付系统的支付完成接口
+    private String expectKey;
+    private HashMap<String, Object> xcxPayParams;
+    private Object responseObject;
+    private Object[] requestObject;
 
     public String getReference() {
         return reference;
@@ -43,5 +49,32 @@ public class EventBO {
 
     public void setMatchedMockAction(MockActionVO matchedMockAction) {
         this.matchedMockAction = matchedMockAction;
+    }
+
+    public void setExpectKey(String expectKey) {
+        this.expectKey = expectKey;
+    }
+
+    public String getExpectKey(){
+        return this.expectKey;
+    }
+
+    public void setXcxPayParams(HashMap params){
+        this.xcxPayParams = params;
+    }
+    public HashMap<String, Object> getXcxPayParams(){
+        return this.xcxPayParams;
+    }
+    public void setResponseObject(Object response){
+        this.responseObject = response;
+    }
+    public Object getResponseObject(){
+        return this.responseObject;
+    }
+    public void setRequestObject(Object[] request){
+        this.requestObject = request;
+    }
+    public Object[] getRequestObject(){
+        return this.requestObject;
     }
 }

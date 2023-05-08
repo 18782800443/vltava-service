@@ -1,5 +1,6 @@
 package core;
 
+import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -28,11 +29,16 @@ import org.slf4j.LoggerFactory;
 import org.kohsuke.MetaInfServices;
 import util.LogbackUtils;
 import javax.annotation.Resource;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.testng.annotations.Test;
+import org.apache.dubbo.rpc.RpcContext;
+import okhttp3.*;
 
 /**
  * @author Rob
@@ -50,6 +56,10 @@ public class Core implements Module, ModuleLifecycle {
     private static final Pattern PATTERN = Pattern.compile("(?<=vltavaMockKey\":\").*?(?=\",)");
     private static Boolean initConcurrent = true;
     private static HttpService httpService;
+    /*
+    适配小程序支付，用于判断是否是小程序支付
+     */
+    public static Boolean xcxOrder = false;
     /**
      * key = reference
      */
@@ -126,6 +136,7 @@ public class Core implements Module, ModuleLifecycle {
                                                                         logger.info("mock请求参数(BEFORE)！eventBO is " + JSONObject.toJSONString(eventBO));
                                                                         logger.info("eventBO的mockey为:" + eventBO.getMockKey());
                                                                         mockBefore(beforeEvent, eventBO);
+                                                                        logger.info("1122");
                                                                         break;
                                                                     case RETURN:
                                                                         ReturnEvent returnEvent = (ReturnEvent) event;
@@ -141,6 +152,20 @@ public class Core implements Module, ModuleLifecycle {
                                                                 logger.error(e.getMessage(), e);
                                                                 throw e;
                                                             } finally {
+                                                                logger.info("是否是小程序单:"+eventBO.getExpectKey());
+                                                                if(eventBO.getExpectKey().equals("oEDFH5IHwmhOuqyLpx2kTgozB4Hb")){
+                                                                    logger.info("开始调用");
+                                                                    eventBO.setXcxPayParams(buildXcxParams(eventBO.getRequestObject(), eventBO.getResponseObject()));
+                                                                    try {
+                                                                        requestZhifuNotify(eventBO);
+                                                                    }catch (Exception e){
+                                                                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                                                                        e.printStackTrace(new PrintStream(baos));
+                                                                        String exception = baos.toString();
+                                                                        logger.info("回调报错：" + exception);
+                                                                        throw new InterruptedException(exception);
+                                                                    }
+                                                                }
                                                                 TraceContext traceContext = Tracer.getContext();
                                                                 if (event.type.equals(Event.Type.RETURN) || event.type.equals(Event.Type.THROWS) || event.type.equals(Event.Type.IMMEDIATELY_RETURN) || event.type.equals(Event.Type.IMMEDIATELY_THROWS)) {
                                                                     if (traceContext != null && traceContext.getEntranceReference().equals(coreBO.getReference())) {
@@ -247,6 +272,8 @@ public class Core implements Module, ModuleLifecycle {
                         returnObj = JSON.parseObject(mockData, method.getGenericReturnType());
                     }
                     logger.info("即将返回的调用结果:" + JSONObject.toJSONString(returnObj));
+                    eventBO.setResponseObject(returnObj);
+                    eventBO.setResponseObject(beforeEvent.argumentArray);
                     ProcessController.returnImmediately(returnObj);
                 }
             }
@@ -255,6 +282,58 @@ public class Core implements Module, ModuleLifecycle {
             ProcessController.throwsImmediately(new Exception(eventBO.getMatchedMockAction().getErrorMsg()));
         }
     }
+
+    /*
+       支付系统小程序支付回调数据mock
+     */
+
+    public static void requestZhifuNotify(EventBO eventBO) throws Exception{
+        OkHttpClient okHttpClient = new OkHttpClient();
+        String url = "http://testcallback.fit.dmall.com/channel/wxpay/lakala/notify";
+        FormBody.Builder builder = new FormBody.Builder();
+        HashMap<String, Object> params = eventBO.getXcxPayParams();
+        logger.info("模拟小程序支付回调开始");
+        logger.info("回调参数：" + JSONUtil.toJsonStr(params));
+        for (String key : params.keySet()) {
+            builder.add(key, String.valueOf(params.get(key)));
+        }
+        RequestBody requestBody = builder.build();
+        Request request = new Request.Builder()
+                .post(requestBody)
+                .url(url)
+                .build();
+        okHttpClient.newCall(request).execute();
+        logger.info("模拟小程序支付回调结果");
+    }
+
+    public static HashMap<String, Object> buildXcxParams(Object[] request,  Object response){
+        HashMap<String, Object> result = new HashMap();
+        Object[] request_a = request;
+        Object[] response_a = (Object[]) response;
+        String total_amount = (String) findKV("total_amount", request_a);
+        result.put("total_amount", total_amount);
+        result.put("payer_amount", total_amount);
+        result.put("acc_settle_amount", total_amount);
+        result.put("out_trade_no", findKV("out_trade_no", response_a));
+        result.put("trade_no", findKV("trade_no", response_a));
+        result.put("log_no", findKV("log_no", response_a));
+        result.put("acc_trade_no","4200001806202305082690644382");
+        result.put("trade_status", "SUCCESS");
+        result.put("trade_state", "SUCCESS");
+        result.put("acc_mdiscount_amount", "0");
+        result.put("trade_time", findKV("resp_time", response_a));
+        result.put("user_id1", findKV("user_id", request_a));
+        result.put("user_id2", findKV("user_id", request_a));
+        result.put("notify_url", "http://testcallback.fit.dmall.com/channel/wxpay/lakala/notify");
+        result.put("account_type", "WECHAT");
+        result.put("bank_type", "OTHERS");
+        result.put("card_type", "99");
+        result.put("merchant_no", findKV("merchant_no", request_a));
+        result.put("remark", "");
+        return result;
+    }
+
+
 
     /*
         查找requestStr中包含"${}"格式的关键字，去response中查找到后并替换原requestStr的数据并返回
@@ -477,6 +556,7 @@ public class Core implements Module, ModuleLifecycle {
                     }
                     if (mockAction.getExpectKey() != null && isMatch) {
                         logger.info("@" + beforeEvent.invokeId + "@ " + "match by expectKey: " + mockAction.getExpectKey() + " action: " + JSON.toJSONString(mockAction));
+                        eventBO.setExpectKey(mockAction.getExpectKey());
                         eventBO.setMatch(true);
                         eventBO.setMatchedMockAction(mockAction);
                         break;
@@ -514,13 +594,14 @@ public class Core implements Module, ModuleLifecycle {
         }
         try {
             String contextStr = "";
+            logger.info(beforeEvent.javaClassName + " ##处理RPC的隐式参数...");
+            Method getContext = rpcContext.getMethod("getContext");
             try {
                 //使用类的ClassLoader获取调用时的RPCContext里面的数据，可以对这里进行改造，增加如果是Http请求的情况
-                logger.info(beforeEvent.javaClassName + " ##处理RPC的隐式参数...");
-                Method getContext = rpcContext.getMethod("getContext");
                 logger.info("rpc上下文为：" + String.valueOf(getContext.invoke(rpcContext)));
-                logger.info("隐式处理参数，获取rpcContext里面的内容" + JSON.toJSONString(getContext.invoke(rpcContext)));
-                contextStr = JSON.toJSONString(getContext.invoke(rpcContext));
+                logger.info("隐式处理参数，获取rpcContext里面的内容" + JSONUtil.toJsonStr(getContext.invoke(rpcContext)));
+                logger.info("直接通过RpcContext去获取的上下文为:"+ JSONUtil.toJsonStr(RpcContext.getContext()));
+                contextStr = JSONUtil.toJsonStr(getContext.invoke(rpcContext));
             } catch (Exception e) {
                 logger.info("报错信息为2：" + e.getMessage());
                 e.printStackTrace();
@@ -532,7 +613,11 @@ public class Core implements Module, ModuleLifecycle {
                     String mockKey = matcher.group(0);
                     logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + mockKey);
                     eventBO.setMockKey(mockKey);
-//                    setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, mockKey);
+                    logger.info("@" + beforeEvent.invokeId + "@ " + "将mockey设置到上下文:" + mockKey);
+//                    rpcContext = beforeEvent.javaClassLoader.loadClass(RPC_CONTEXT_CLASS);
+//                    Method getContext1 = rpcContext.getMethod("getContext");
+//                    RpcContext context = (RpcContext) getContext1.invoke(rpcContext);
+//                    context.setAttachment(VLTAVA_MOCK_KEY, mockKey);
                 }
             } else {
                 try {
@@ -550,11 +635,30 @@ public class Core implements Module, ModuleLifecycle {
                     if (contextStr != "") {
                         logger.info("@" + beforeEvent.invokeId + "@ " + "mockKey: " + contextStr);
                         eventBO.setMockKey(contextStr);
-//                        setAttachment.invoke(rpcContext, VLTAVA_MOCK_KEY, contextStr);
+                        logger.info("@" + beforeEvent.invokeId + "@ " + "将mockey设置到上下文:" + contextStr);
+                        Class rpcContext1 = beforeEvent.javaClassLoader.loadClass(RPC_CONTEXT_CLASS);
+                        Method getContext1 = rpcContext1.getMethod("getContext");
+                        logger.info("隐式处理参数，获取rpcContext里面的内容111:" + JSONUtil.toJsonStr(getContext1.invoke(rpcContext1)));
+                        RpcContext.getContext().setAttachment(VLTAVA_MOCK_KEY, contextStr);
+                        logger.info("隐式处理参数，获取rpcContext里面的内容112:" + JSONUtil.toJsonStr(RpcContext.getContext()));
+                        Object s1 = JSONObject.parseObject(JSONUtil.toJsonStr(RpcContext.getContext()), rpcContext1);
+                        logger.info("隐式处理参数，获取rpcContext里面的内容113:" + JSONUtil.toJsonStr(getContext1.invoke(rpcContext1)));
+//                        RpcContext.getContext().setAttachment(VLTAVA_MOCK_KEY, contextStr);
+                        Method restoreContext = rpcContext1.getMethod("restoreContext", rpcContext1);
+                        restoreContext.invoke(rpcContext1, s1);
+                        logger.info("隐式处理参数，获取rpcContext里面的内容114:" + JSONUtil.toJsonStr(getContext1.invoke(rpcContext1)));
+
+
+//                        JSONUtil.toBean();
+//                        Method getContext1 = rpcContext.getMethod("getContext");
+//                        RpcContext context = (RpcContext) getContext1.invoke(rpcContext);
+//                        context.setAttachment(VLTAVA_MOCK_KEY, contextStr);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
-                    logger.info("报错信息为3：" + e.getMessage());
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    e.printStackTrace(new PrintStream(baos));
+                    String exception = baos.toString();
+                    logger.info("报错信息为3：" + exception);
                 }
             }
         }catch (Exception e){
