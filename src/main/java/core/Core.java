@@ -1,5 +1,6 @@
 package core;
 
+import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.JSONPath;
@@ -8,7 +9,6 @@ import com.alibaba.jvm.sandbox.api.event.*;
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatchBuilder;
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatcher;
 import com.alibaba.jvm.sandbox.api.resource.ModuleEventWatcher;
-import com.dmall.fit.boot.spec.jackson.utils.JSONUtil;
 import com.dmall.vltava.domain.enums.MockTypeEnum;
 import com.dmall.vltava.domain.enums.TaskStatusEnum;
 import com.dmall.vltava.domain.mock.MockActionVO;
@@ -31,6 +31,7 @@ import org.kohsuke.MetaInfServices;
 import org.testng.annotations.Test;
 import util.FastJsonUtil;
 import util.LogbackUtils;
+
 
 import javax.annotation.Resource;
 import java.lang.reflect.Method;
@@ -131,13 +132,13 @@ public class Core implements Module, ModuleLifecycle {
                                                                 switch (event.type) {
                                                                     case BEFORE:
                                                                         BeforeEvent beforeEvent = (BeforeEvent) event;
-                                                                        logger.info("mock请求参数(BEFORE)！eventBO is " + JSONObject.toJSONString(eventBO));
+                                                                        logger.info("mock请求参数(BEFORE)！eventBO is " + cn.hutool.json.JSONUtil.toJsonStr(eventBO));
                                                                         logger.info("eventBO的mockey为:" + eventBO.getMockKey());
                                                                         mockBefore(beforeEvent, eventBO);
                                                                         break;
                                                                     case RETURN:
                                                                         ReturnEvent returnEvent = (ReturnEvent) event;
-                                                                        logger.info("mock请求参数(RETURN)！eventBO is " + JSONObject.toJSONString(eventBO));
+                                                                        logger.info("mock请求参数(RETURN)！eventBO is " + cn.hutool.json.JSONUtil.toJsonStr(eventBO));
                                                                         mockReturn(returnEvent, eventBO);
                                                                         break;
                                                                     default:
@@ -198,11 +199,11 @@ public class Core implements Module, ModuleLifecycle {
     private static void mockBefore(BeforeEvent beforeEvent, EventBO eventBO) throws ProcessControlException, InterruptedException {
         logger.info("##本次处理的类是：" + beforeEvent.javaClassName);
         String tid = getTid(beforeEvent);
-        String params = JSON.toJSONString(beforeEvent.argumentArray);
+        String params = cn.hutool.json.JSONUtil.toJsonStr(beforeEvent.argumentArray);
         paramLogger.info(String.format("@ %s @ 【class】：%s【method】：%s【param】: %s", beforeEvent.invokeId, eventBO.getReference().split("#")[0],
                 eventBO.getReference().split("#")[1], params));
         matchAction(beforeEvent, eventBO, params, tid);
-        logger.info("@ " + JSON.toJSONString(Tracer.getContext()) + " @ " + "mock before...");
+        logger.info("@ " + cn.hutool.json.JSONUtil.toJsonStr(Tracer.getContext()) + " @ " + "mock before...");
         // 未匹配
         if (!eventBO.getMatch()) {
             return;
@@ -214,18 +215,14 @@ public class Core implements Module, ModuleLifecycle {
             }
             // 非入口
             logger.info("1111111111111112");
-            try {
-                SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
-                Integer time;
-                if (sleepTimeVO.getNeedRandom() == 1) {
-                    time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
-                } else {
-                    time = sleepTimeVO.getBaseTime();
-                }
-                Thread.sleep(time);
-            }catch(Exception e){
-                logger.info("未获取到休眠时间，不休眠");
+            SleepTimeVO sleepTimeVO = eventBO.getMatchedMockAction().getSleepTimeVO();
+            Integer time;
+            if (sleepTimeVO.getNeedRandom() == 1) {
+                time = new Random().nextInt(sleepTimeVO.getRandomEnd() - sleepTimeVO.getRandomStart()) + sleepTimeVO.getRandomStart();
+            } else {
+                time = sleepTimeVO.getBaseTime();
             }
+            Thread.sleep(time);
             Tracer.getContext().startInvoke(beforeEvent);
         }
         if (eventBO.getMatchedMockAction().getMockType().equals(MockTypeEnum.RETURN_VALUE.getKey())) {
@@ -238,8 +235,8 @@ public class Core implements Module, ModuleLifecycle {
             }
             for (Method method : clz.getMethods()) {
                 logger.info("1111111111111114");
-                logger.info(JSON.toJSONString(method.getName()));
-                logger.info(JSON.toJSONString(beforeEvent.javaMethodName));
+                logger.info(cn.hutool.json.JSONUtil.toJsonStr(method.getName()));
+                logger.info(cn.hutool.json.JSONUtil.toJsonStr(beforeEvent.javaMethodName));
                 if (method.getName().equals(beforeEvent.javaMethodName)) {
                     logger.info("1111111111111115");
                     Object returnObj = null;
@@ -248,8 +245,9 @@ public class Core implements Module, ModuleLifecycle {
                     // mock数据中的${xxx}格式，从请求的参数中找到xxx的值来替换原mock数据
                     String mockData="";
                     if (params.contains("https://api.sxpay.shanxinj.com/mct1/payorder")) {
+//                        RpcContext.getContext().setAttachment("vltavaMockKey",mockKey);
                         logger.info("========================解密=======================");
-                        String request = rcbDecrypt(JSON.toJSONString(beforeEvent.argumentArray[1]));
+                        String request = rcbDecrypt(cn.hutool.json.JSONUtil.toJsonStr(beforeEvent.argumentArray[1]));
                         logger.info("请求参数是：%s",request);
                         logger.info("========================创建新对象=======================");
                         Object[] reqObj = new Object[1];
@@ -271,7 +269,7 @@ public class Core implements Module, ModuleLifecycle {
                         returnObj = JSON.parseObject(mockData, method.getGenericReturnType());
                     }
 
-                    logger.info("即将返回的调用结果:" + JSONObject.toJSONString(returnObj));
+                    logger.info("即将返回的调用结果:" + cn.hutool.json.JSONUtil.toJsonStr(returnObj));
                     ProcessController.returnImmediately(returnObj);
                 }
             }
@@ -469,7 +467,7 @@ public class Core implements Module, ModuleLifecycle {
                 tmp = JSON.parseArray(eventBO.getMatchedMockAction().getExpectValue());
             }
             JSONPath.set(tmp, eventBO.getMatchedMockAction().getResponsePath(), dynamicValue.toString());
-            eventBO.getMatchedMockAction().setExpectValue(JSON.toJSONString(tmp));
+            eventBO.getMatchedMockAction().setExpectValue(JSONUtil.toJsonStr(tmp));
             logger.info("替换后结果：" + eventBO.getMatchedMockAction().getExpectValue());
         }
     }
@@ -478,7 +476,7 @@ public class Core implements Module, ModuleLifecycle {
     private static void mockReturn(ReturnEvent returnEvent, EventBO inputEventBO) throws ProcessControlException {
         logger.info("@" + returnEvent.invokeId + "@ " + "mock return...");
         paramLogger.info(String.format("@ %s @ 【class】：%s【method】：%s【response】: %s", returnEvent.invokeId, inputEventBO.getReference().split("#")[0],
-                inputEventBO.getReference().split("#")[1], JSON.toJSONString(PojoUtils.generalize(returnEvent.object))));
+                inputEventBO.getReference().split("#")[1], JSONUtil.toJsonStr(PojoUtils.generalize(returnEvent.object))));
         EventBO eventBO = null;
         if (MATCH_MAP.containsKey(returnEvent.invokeId)) {
             eventBO = MATCH_MAP.get(returnEvent.invokeId);
@@ -537,7 +535,7 @@ public class Core implements Module, ModuleLifecycle {
         logger.info(" 正则匹配，匹配被调用类(" + beforeEvent.javaClassName + ")的mockKey");
         eventBO.setMatch(false);
         TraceContext traceContext = Tracer.getContext();
-        logger.info("上下文为：" + JSON.toJSONString(traceContext));
+        logger.info("上下文为：" + JSONUtil.toJsonStr(traceContext));
         if (traceContext == null) {
             Tracer.start(null, eventBO.getReference(), tid);
             implicitParams(beforeEvent, eventBO);
@@ -554,7 +552,7 @@ public class Core implements Module, ModuleLifecycle {
                     if (mockAction.getEntrance() != null && mockAction.getEntrance()) {
                         Tracer.setMockKey(eventBO.getMockKey());
                     }
-                    logger.info("@" + beforeEvent.invokeId + "@ " + "match by mockKey: " + eventBO.getMockKey() + " action: " + JSON.toJSONString(mockAction));
+                    logger.info("@" + beforeEvent.invokeId + "@ " + "match by mockKey: " + eventBO.getMockKey() + " action: " + JSONUtil.toJsonStr(mockAction));
                     break;
                 }
             }
@@ -575,7 +573,7 @@ public class Core implements Module, ModuleLifecycle {
                         }
                     }
                     if (mockAction.getExpectKey() != null && isMatch) {
-                        logger.info("@" + beforeEvent.invokeId + "@ " + "match by expectKey: " + mockAction.getExpectKey() + " action: " + JSON.toJSONString(mockAction));
+                        logger.info("@" + beforeEvent.invokeId + "@ " + "match by expectKey: " + mockAction.getExpectKey() + " action: " + cn.hutool.json.JSONUtil.toJsonStr(mockAction));
                         eventBO.setMatch(true);
                         eventBO.setMatchedMockAction(mockAction);
                         break;
@@ -588,7 +586,7 @@ public class Core implements Module, ModuleLifecycle {
         } else {
             if (eventBO.getMatchedMockAction().getMockType() != null && eventBO.getMatchedMockAction().getMockType().equals(MockTypeEnum.SLEEP.getKey())) {
                 MATCH_MAP.put(beforeEvent.invokeId, eventBO);
-                logger.info("@" + beforeEvent.invokeId + "@ " + "add MATCH_MAP: " + JSON.toJSONString(MATCH_MAP));
+                logger.info("@" + beforeEvent.invokeId + "@ " + "add MATCH_MAP: " + cn.hutool.json.JSONUtil.toJsonStr(MATCH_MAP));
             }
         }
 //        logger.info("CORE_MAP: " + JSON.toJSONString(CORE_MAP));
@@ -616,13 +614,12 @@ public class Core implements Module, ModuleLifecycle {
                 //使用类的ClassLoader获取调用时的RPCContext里面的数据，可以对这里进行改造，增加如果是Http请求的情况
                 logger.info(beforeEvent.javaClassName + " ##处理RPC的隐式参数...");
                 Method getContext = rpcContext.getMethod("getContext");
-                logger.info("隐式处理参数，获取rpcContext里面的内容" + JSON.toJSONString(getContext.invoke(rpcContext)));
-                contextStr = JSON.toJSONString(getContext.invoke(rpcContext));
+                logger.info("隐式处理参数，获取rpcContext里面的内容" + cn.hutool.json.JSONUtil.toJsonStr(getContext.invoke(rpcContext)));
+                contextStr = cn.hutool.json.JSONUtil.toJsonStr(getContext.invoke(rpcContext));
             } catch (Exception e) {
                 logger.info(e.getMessage());
                 e.printStackTrace();
             }
-//            assert rpcContext != null;
             Method setAttachment = rpcContext.getMethod("setAttachment");
             if (contextStr.contains(VLTAVA_MOCK_KEY)) {
                 Matcher matcher = PATTERN.matcher(contextStr);
