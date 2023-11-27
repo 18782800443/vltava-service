@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.dmall</groupId>
+    <groupId>com.testhuamou</groupId>
     <artifactId>vltava-agent-new</artifactId>
     <version>1.0-SNAPSHOT</version>
 
@@ -49,7 +49,7 @@
             <version>5.7.12</version>
         </dependency>
         <dependency>
-            <groupId>com.dmall.dsf</groupId>
+            <groupId>com.testhuamou.dsf</groupId>
             <artifactId>dsf-sdk</artifactId>
             <version>2.8.4-RELEASE</version>
         </dependency>
@@ -93,19 +93,19 @@
         </dependency>
 
         <dependency>
-            <groupId>com.dmall.dmg</groupId>
+            <groupId>com.testhuamou.dmg</groupId>
             <artifactId>dmg-sdk4-rocketmq</artifactId>
             <version>4.4.2</version>
         </dependency>
 
         <dependency>
-            <groupId>com.dmall.monitor</groupId>
+            <groupId>com.testhuamou.monitor</groupId>
             <artifactId>dmc-sdk</artifactId>
             <version>1.1.2-RELEASE</version>
         </dependency>
 
         <dependency>
-            <groupId>com.dmall</groupId>
+            <groupId>com.testhuamou</groupId>
             <artifactId>vltava-domain</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
@@ -152,12 +152,12 @@
     <distributionManagement>
         <snapshotRepository>
             <id>snapshots</id>
-            <url>http://nexus.fit.dmall.com:8081/nexus/content/repositories/snapshots/</url>
+            <url>http://nexus.fit.testhuamou.com:8081/nexus/content/repositories/snapshots/</url>
             <!--<uniqueVersion>true</uniqueVersion>-->
         </snapshotRepository>
         <repository>
             <id>releases</id>
-            <url>http://nexus.fit.dmall.com:8081/nexus/content/repositories/releases/</url>
+            <url>http://nexus.fit.testhuamou.com:8081/nexus/content/repositories/releases/</url>
         </repository>
     </distributionManagement>
 

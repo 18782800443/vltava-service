@@ -1,7 +1,7 @@
 package core.domain;
 
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatcher;
-import com.dmall.vltava.domain.mock.MockActionVO;
+import com.testhuamou.vltava.domain.mock.MockActionVO;
 
 /**
  * @author Rob

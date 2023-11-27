@@ -4,8 +4,8 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.jvm.sandbox.api.event.BeforeEvent;
 import com.alibaba.jvm.sandbox.api.event.ReturnEvent;
 import com.alibaba.jvm.sandbox.api.event.ThrowsEvent;
-import com.dmall.vltava.domain.mock.InvokeVO;
-import com.dmall.vltava.domain.mock.TraceVO;
+import com.testhuamou.vltava.domain.mock.InvokeVO;
+import com.testhuamou.vltava.domain.mock.TraceVO;
 import core.DataCenter;
 import org.apache.dubbo.common.utils.PojoUtils;
 

@@ -1,6 +1,6 @@
 package core;
 
-import com.dmall.vltava.domain.mock.TraceVO;
+import com.testhuamou.vltava.domain.mock.TraceVO;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 

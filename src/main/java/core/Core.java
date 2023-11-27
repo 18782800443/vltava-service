@@ -10,10 +10,10 @@ import com.alibaba.jvm.sandbox.api.event.*;
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatchBuilder;
 import com.alibaba.jvm.sandbox.api.listener.ext.EventWatcher;
 import com.alibaba.jvm.sandbox.api.resource.ModuleEventWatcher;
-import com.dmall.vltava.domain.enums.MockTypeEnum;
-import com.dmall.vltava.domain.enums.TaskStatusEnum;
-import com.dmall.vltava.domain.mock.MockActionVO;
-import com.dmall.vltava.domain.mock.SleepTimeVO;
+import com.testhuamou.vltava.domain.enums.MockTypeEnum;
+import com.testhuamou.vltava.domain.enums.TaskStatusEnum;
+import com.testhuamou.vltava.domain.mock.MockActionVO;
+import com.testhuamou.vltava.domain.mock.SleepTimeVO;
 import core.domain.CoreBO;
 import core.domain.EventBO;
 import core.domain.TraceContext;
@@ -289,7 +289,7 @@ public class Core implements Module, ModuleLifecycle {
 
     public static void requestZhifuNotify(EventBO eventBO) throws Exception{
         OkHttpClient okHttpClient = new OkHttpClient();
-        String url = "http://testcallback.fit.dmall.com/channel/wxpay/lakala/notify";
+        String url = "http://testcallback.fit.testhuamou.com/channel/wxpay/lakala/notify";
         FormBody.Builder builder = new FormBody.Builder();
         HashMap<String, Object> params = eventBO.getXcxPayParams();
         logger.info("模拟小程序支付回调开始");
@@ -324,7 +324,7 @@ public class Core implements Module, ModuleLifecycle {
         result.put("trade_time", findKV("resp_time", response_a));
         result.put("user_id1", findKV("user_id", request_a));
         result.put("user_id2", findKV("user_id", request_a));
-        result.put("notify_url", "http://testcallback.fit.dmall.com/channel/wxpay/lakala/notify");
+        result.put("notify_url", "http://testcallback.fit.testhuamou.com/channel/wxpay/lakala/notify");
         result.put("account_type", "WECHAT");
         result.put("bank_type", "OTHERS");
         result.put("card_type", "99");
@@ -486,7 +486,7 @@ public class Core implements Module, ModuleLifecycle {
 
     private static String getTid(BeforeEvent beforeEvent) {
         try {
-            Class monitorClz = beforeEvent.javaClassLoader.loadClass("com.dmall.monitor.sdk.Monitor");
+            Class monitorClz = beforeEvent.javaClassLoader.loadClass("com.testhuamou.monitor.sdk.Monitor");
             Method method = monitorClz.getMethod("getTraceId");
             Object tid = method.invoke(monitorClz);
             return tid != null ? (String) tid : null;
@@ -500,7 +500,7 @@ public class Core implements Module, ModuleLifecycle {
     private static String getParam(BeforeEvent beforeEvent) {
         try {
 //            beforeEvent.argumentArray
-            Class monitorClz = beforeEvent.javaClassLoader.loadClass("com.dmall.monitor.sdk.Monitor");
+            Class monitorClz = beforeEvent.javaClassLoader.loadClass("com.testhuamou.monitor.sdk.Monitor");
             Method method = monitorClz.getMethod("getTraceId");
             Object tid = method.invoke(monitorClz);
             return tid != null ? (String) tid : null;

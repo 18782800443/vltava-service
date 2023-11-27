@@ -1,7 +1,7 @@
 package core;
 
 import com.alibaba.fastjson.JSON;
-import com.dmall.vltava.domain.mock.RegisterVO;
+import com.testhuamou.vltava.domain.mock.RegisterVO;
 import http.HttpService;
 
 import mq.MqService;
@@ -53,7 +53,7 @@ public class Register {
 
     // for debug
     public static Boolean isPromise(){
-        return registerVO.getSystemUniqueName().equals("promise-dmall-api");
+        return registerVO.getSystemUniqueName().equals("promise-testhuamou-api");
     }
 
     private static Boolean startServer(HttpService httpService, Integer port) {
