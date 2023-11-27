@@ -1,11 +1,11 @@
 package http;
 
 import com.alibaba.fastjson.JSON;
-import com.dmall.vltava.domain.agent.InjectResult;
-import com.dmall.vltava.domain.base.CommonException;
-import com.dmall.vltava.domain.enums.InjectStatusEnum;
-import com.dmall.vltava.domain.mock.MockActionVO;
-import com.dmall.vltava.domain.mock.MockVO;
+import com.testhuamou.vltava.domain.agent.InjectResult;
+import com.testhuamou.vltava.domain.base.CommonException;
+import com.testhuamou.vltava.domain.enums.InjectStatusEnum;
+import com.testhuamou.vltava.domain.mock.MockActionVO;
+import com.testhuamou.vltava.domain.mock.MockVO;
 import core.Core;
 import core.DataCenter;
 import core.Register;

@@ -2,10 +2,10 @@
 <configuration scan="true" scanPeriod="10000">
 
     <appender name="SANDBOX-FILE-APPENDER" class="ch.qos.logback.core.rolling.RollingFileAppender">
-<!--        <file>/web/logs/agent.vltava.dmall.com/agent.log</file>-->
+<!--        <file>/web/logs/agent.vltava.testhuamou.com/agent.log</file>-->
         <file>/tmp/agent.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <FileNamePattern>/web/logs/agent.vltava.dmall.com/agent.log.%d{yyyy-MM-dd}</FileNamePattern>
+            <FileNamePattern>/web/logs/agent.vltava.testhuamou.com/agent.log.%d{yyyy-MM-dd}</FileNamePattern>
             <MaxHistory>7</MaxHistory>
         </rollingPolicy>
         <encoder>

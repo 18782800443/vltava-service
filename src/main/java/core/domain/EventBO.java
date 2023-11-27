@@ -1,6 +1,6 @@
 package core.domain;
 
-import com.dmall.vltava.domain.mock.MockActionVO;
+import com.testhuamou.vltava.domain.mock.MockActionVO;
 
 import java.util.UUID;
 

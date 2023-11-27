@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.List;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
-import com.dmall.fit.boot.spec.jackson.utils.JSONUtil;
+import com.testhuamou.fit.boot.spec.jackson.utils.JSONUtil;
 
 
 public class FastJsonUtil {

@@ -1,13 +1,13 @@
 package mq;
 
 import com.alibaba.fastjson.JSON;
-import com.dmall.dmg.sdk4.comm.auth.AuthInfo;
-import com.dmall.dmg.sdk4.comm.exception.DMGSendException;
-import com.dmall.dmg.sdk4.rocketmq.message.RocketMsg;
-import com.dmall.dmg.sdk4.rocketmq.producer.DefRocketProducerWrapper;
-import com.dmall.dmg.sdk4.rocketmq.producer.RocketCallback;
-import com.dmall.monitor.sdk.MonitorConfig;
-import com.dmall.vltava.domain.mock.RegisterVO;
+import com.testhuamou.dmg.sdk4.comm.auth.AuthInfo;
+import com.testhuamou.dmg.sdk4.comm.exception.DMGSendException;
+import com.testhuamou.dmg.sdk4.rocketmq.message.RocketMsg;
+import com.testhuamou.dmg.sdk4.rocketmq.producer.DefRocketProducerWrapper;
+import com.testhuamou.dmg.sdk4.rocketmq.producer.RocketCallback;
+import com.testhuamou.monitor.sdk.MonitorConfig;
+import com.testhuamou.vltava.domain.mock.RegisterVO;
 import core.Core;
 
 import org.apache.rocketmq.client.producer.SendResult;
@@ -24,10 +24,10 @@ public class MqService {
     private static final Logger logger = LoggerFactory.getLogger(MqService.class);
 
     private final static String PROJECT_CODE = "aladdin-FIT";
-    private final static String APP_CODE = "dmall-fit-vltava";
+    private final static String APP_CODE = "testhuamou-fit-vltava";
     private final static String SECRET_KEY = "5795DBAF-1888-47AA-89B2-CCD224BE65E9";
-    private final static String DMG_SERVER_ADDR = "testamp.dmg.api.fit.inner-dmall.com";
-    private final static String DMC_SERVER_ADDR  = "testds.dmc.api.fit.inner-dmall.com";
+    private final static String DMG_SERVER_ADDR = "testamp.dmg.api.fit.inner-testhuamou.com";
+    private final static String DMC_SERVER_ADDR  = "testds.dmc.api.fit.inner-testhuamou.com";
     private final static String TOPIC = "rkt_vltava_req_test_test";
 
     private static DefRocketProducerWrapper wrapper;
